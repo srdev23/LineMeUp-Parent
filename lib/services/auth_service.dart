@@ -1,0 +1,180 @@
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import '../models/parent.dart';
+import '../utils/phone_utils.dart';
+
+class AuthService {
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+
+  User? get currentUser => _auth.currentUser;
+
+  Stream<User?> get authStateChanges => _auth.authStateChanges();
+
+  Future<void> verifyPhoneNumber({
+    required String phoneNumber,
+    required Function(String verificationId) onCodeSent,
+    required Function(String error) onError,
+    Function(PhoneAuthCredential)? onVerificationCompleted,
+  }) async {
+    try {
+      // Normalize phone number to E.164 format
+      String normalizedPhone = PhoneUtils.normalizePhoneNumber(phoneNumber);
+      
+      print('🔐 Starting phone verification for: $normalizedPhone');
+      
+      await _auth.verifyPhoneNumber(
+        phoneNumber: normalizedPhone,
+        verificationCompleted: (PhoneAuthCredential credential) async {
+          print('✅ Auto-verification completed');
+          // Auto-verification completed (Android only)
+          if (onVerificationCompleted != null) {
+            onVerificationCompleted(credential);
+          } else {
+            // Default: sign in and verify parent
+            await _handleAutoVerification(credential);
+          }
+        },
+        verificationFailed: (FirebaseAuthException e) {
+          print('❌ Verification failed: ${e.code} - ${e.message}');
+          String errorMessage = e.message ?? 'Verification failed';
+          if (e.code == 'invalid-phone-number') {
+            errorMessage = 'Invalid phone number format. Please use +1234567890';
+          } else if (e.code == 'too-many-requests') {
+            errorMessage = 'Too many requests. Please try again later.';
+          } else if (e.code == 'missing-client-identifier') {
+            errorMessage = 'Firebase not configured. Please check google-services.json';
+          }
+          onError(errorMessage);
+        },
+        codeSent: (String verificationId, int? resendToken) {
+          print('📱 Verification code sent. ID: $verificationId');
+          onCodeSent(verificationId);
+        },
+        codeAutoRetrievalTimeout: (String verificationId) {
+          print('⏱️ Auto-retrieval timeout. ID: $verificationId');
+          // Store verification ID for auto-retrieval
+          onCodeSent(verificationId);
+        },
+        timeout: const Duration(seconds: 60),
+      );
+      
+      print('📤 verifyPhoneNumber call completed');
+    } catch (e, stackTrace) {
+      print('💥 Exception in verifyPhoneNumber: $e');
+      print('Stack trace: $stackTrace');
+      onError('Failed to send verification code: ${e.toString()}');
+    }
+  }
+
+  Future<void> _handleAutoVerification(PhoneAuthCredential credential) async {
+    try {
+      await _auth.signInWithCredential(credential);
+      // Parent verification will happen in auth state listener
+    } catch (e) {
+      // Handle error
+    }
+  }
+
+  Future<Parent?> signInWithOTP({
+    required String verificationId,
+    required String smsCode,
+  }) async {
+    try {
+      // Create credential
+      PhoneAuthCredential credential = PhoneAuthProvider.credential(
+        verificationId: verificationId,
+        smsCode: smsCode,
+      );
+
+      // Sign in
+      UserCredential userCredential =
+          await _auth.signInWithCredential(credential);
+      
+      if (userCredential.user == null) {
+        await signOut();
+        return null;
+      }
+
+      String phoneNumber = userCredential.user!.phoneNumber ?? '';
+      
+      if (phoneNumber.isEmpty) {
+        await signOut();
+        return null;
+      }
+
+      // Verify parent exists in Firestore
+      return await _verifyParentInFirestore(phoneNumber);
+    } on FirebaseAuthException catch (e) {
+      await signOut();
+      throw Exception('Authentication failed: ${e.message}');
+    } catch (e) {
+      await signOut();
+      throw Exception('Sign in failed: ${e.toString()}');
+    }
+  }
+
+  Future<Parent?> _verifyParentInFirestore(String phoneNumber) async {
+    try {
+      // First, try direct query with exact match
+      QuerySnapshot querySnapshot = await _firestore
+          .collection('parents')
+          .where('contactInfo', isEqualTo: phoneNumber)
+          .limit(1)
+          .get();
+
+      if (querySnapshot.docs.isNotEmpty) {
+        final doc = querySnapshot.docs.first;
+        final data = doc.data() as Map<String, dynamic>?;
+        if (data != null) {
+          return Parent.fromFirestore(data, doc.id);
+        }
+      }
+
+      // If direct query fails, try matching with normalized phone numbers
+      // This handles cases where phone number formats differ
+      QuerySnapshot allParents = await _firestore
+          .collection('parents')
+          .get();
+
+      for (var doc in allParents.docs) {
+        final data = doc.data() as Map<String, dynamic>?;
+        if (data == null) continue;
+        
+        String contactInfo = data['contactInfo']?.toString() ?? '';
+        
+        // Compare phone numbers (handles different formats)
+        if (PhoneUtils.arePhoneNumbersEqual(phoneNumber, contactInfo)) {
+          return Parent.fromFirestore(data, doc.id);
+        }
+      }
+
+      // If no match found, sign out
+      await signOut();
+      return null;
+    } catch (e) {
+      await signOut();
+      return null;
+    }
+  }
+
+  // Verify parent when user is already signed in (for auto-verification)
+  Future<Parent?> verifyCurrentUser() async {
+    final user = _auth.currentUser;
+    if (user == null || user.phoneNumber == null) {
+      return null;
+    }
+    
+    return await _verifyParentInFirestore(user.phoneNumber!);
+  }
+
+  Future<void> signOut() async {
+    await _auth.signOut();
+  }
+
+  // Sign in with credential (for auto-verification)
+  Future<void> signInWithCredential(PhoneAuthCredential credential) async {
+    await _auth.signInWithCredential(credential);
+  }
+}
+

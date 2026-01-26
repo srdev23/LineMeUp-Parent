@@ -1,0 +1,409 @@
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../providers/pickup_provider.dart';
+import '../providers/auth_provider.dart';
+
+class PickupHomeScreen extends StatefulWidget {
+  const PickupHomeScreen({super.key});
+
+  @override
+  State<PickupHomeScreen> createState() => _PickupHomeScreenState();
+}
+
+class _PickupHomeScreenState extends State<PickupHomeScreen> {
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.grey[50],
+      appBar: AppBar(
+        title: const Text(
+          'Pickup Status',
+          style: TextStyle(fontWeight: FontWeight.w600),
+        ),
+        elevation: 0,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.logout),
+            tooltip: 'Logout',
+            onPressed: () async {
+              final authProvider =
+                  Provider.of<AuthProvider>(context, listen: false);
+              final pickupProvider =
+                  Provider.of<PickupProvider>(context, listen: false);
+              pickupProvider.dispose();
+              await authProvider.signOut();
+            },
+          ),
+        ],
+      ),
+      body: Consumer<PickupProvider>(
+        builder: (context, pickupProvider, child) {
+          if (pickupProvider.school == null) {
+            return const Center(
+              child: CircularProgressIndicator(),
+            );
+          }
+
+          return RefreshIndicator(
+            onRefresh: () async {
+              // Refresh logic if needed
+            },
+            child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.all(20.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const SizedBox(height: 8),
+                  
+                  // School Info Card
+                  _buildSchoolCard(pickupProvider),
+                  
+                  const SizedBox(height: 20),
+                  
+                  // Students Card
+                  _buildStudentsCard(pickupProvider),
+                  
+                  const SizedBox(height: 24),
+                  
+                  // Main Status Card - Large and Prominent
+                  _buildStatusCard(pickupProvider, context),
+                  
+                  const SizedBox(height: 20),
+                  
+                  // Additional Info Card
+                  _buildInfoCard(pickupProvider),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildSchoolCard(PickupProvider provider) {
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(20.0),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Theme.of(context).primaryColor.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(
+                Icons.school,
+                color: Theme.of(context).primaryColor,
+                size: 28,
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'School',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey[600],
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    provider.school!.name,
+                    style: const TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStudentsCard(PickupProvider provider) {
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(20.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(
+                    Icons.person,
+                    color: Colors.blue,
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  'Students',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey[600],
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            ...provider.selectedStudents.map(
+              (student) => Padding(
+                padding: const EdgeInsets.only(bottom: 8.0),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        color: Colors.blue,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Text(
+                      student.name,
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatusCard(PickupProvider provider, BuildContext context) {
+    String statusText;
+    String statusSubtext;
+    Color statusColor;
+    Color backgroundColor;
+    IconData statusIcon;
+    double iconSize;
+
+    switch (provider.pickupState) {
+      case PickupState.pickupNotActive:
+        statusText = 'Pickup Not Active';
+        statusSubtext = 'Pickup service is currently unavailable';
+        statusColor = Colors.grey;
+        backgroundColor = Colors.grey[100]!;
+        statusIcon = Icons.pause_circle_outline;
+        iconSize = 80;
+        break;
+      case PickupState.waitingInsideZoneInactive:
+        statusText = 'Waiting';
+        statusSubtext = 'Pickup service will start soon';
+        statusColor = Colors.orange;
+        backgroundColor = Colors.orange[50]!;
+        statusIcon = Icons.access_time;
+        iconSize = 80;
+        break;
+      case PickupState.waitingActiveNotQueued:
+        statusText = 'Approaching';
+        statusSubtext = 'You are near the pickup zone';
+        statusColor = Colors.blue;
+        backgroundColor = Colors.blue[50]!;
+        statusIcon = Icons.location_on;
+        iconSize = 80;
+        break;
+      case PickupState.queued:
+        statusText = 'In Queue';
+        statusSubtext = provider.queuePosition > 0
+            ? 'Your position: #${provider.queuePosition}'
+            : 'Waiting for your turn';
+        statusColor = Colors.blue;
+        backgroundColor = Colors.blue[50]!;
+        statusIcon = Icons.queue;
+        iconSize = 80;
+        break;
+      case PickupState.ready:
+        statusText = 'Ready for Pickup';
+        statusSubtext = 'Your child is ready! Please proceed to pickup';
+        statusColor = Colors.green;
+        backgroundColor = Colors.green[50]!;
+        statusIcon = Icons.check_circle;
+        iconSize = 100;
+        break;
+      case PickupState.pickedUp:
+        statusText = 'Picked Up';
+        statusSubtext = 'Pickup completed successfully';
+        statusColor = Colors.green;
+        backgroundColor = Colors.green[50]!;
+        statusIcon = Icons.done_all;
+        iconSize = 80;
+        break;
+    }
+
+    return Container(
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: statusColor.withOpacity(0.3),
+          width: 2,
+        ),
+      ),
+      padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 24),
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: statusColor.withOpacity(0.2),
+                  blurRadius: 20,
+                  spreadRadius: 5,
+                ),
+              ],
+            ),
+            child: Icon(
+              statusIcon,
+              size: iconSize,
+              color: statusColor,
+            ),
+          ),
+          const SizedBox(height: 32),
+          Text(
+            statusText,
+            style: TextStyle(
+              fontSize: 36,
+              fontWeight: FontWeight.bold,
+              color: statusColor,
+              letterSpacing: -0.5,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 12),
+          Text(
+            statusSubtext,
+            style: TextStyle(
+              fontSize: 16,
+              color: Colors.grey[700],
+              fontWeight: FontWeight.w400,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          if (provider.pickupState == PickupState.queued &&
+              provider.queuePosition > 0) ...[
+            const SizedBox(height: 24),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              decoration: BoxDecoration(
+                color: statusColor.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                '#${provider.queuePosition}',
+                style: TextStyle(
+                  fontSize: 32,
+                  fontWeight: FontWeight.bold,
+                  color: statusColor,
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInfoCard(PickupProvider provider) {
+    return Card(
+      elevation: 1,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                _buildInfoItem(
+                  icon: Icons.location_on,
+                  label: 'Location',
+                  value: provider.isInsideZone ? 'Inside Zone' : 'Outside Zone',
+                  color: provider.isInsideZone ? Colors.green : Colors.grey,
+                ),
+                Container(
+                  width: 1,
+                  height: 40,
+                  color: Colors.grey[300],
+                ),
+                _buildInfoItem(
+                  icon: Icons.schedule,
+                  label: 'Status',
+                  value: provider.school!.pickupActive ? 'Active' : 'Inactive',
+                  color: provider.school!.pickupActive ? Colors.green : Colors.grey,
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInfoItem({
+    required IconData icon,
+    required String label,
+    required String value,
+    required Color color,
+  }) {
+    return Column(
+      children: [
+        Icon(icon, color: color, size: 24),
+        const SizedBox(height: 8),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            color: Colors.grey[600],
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: color,
+          ),
+        ),
+      ],
+    );
+  }
+}
