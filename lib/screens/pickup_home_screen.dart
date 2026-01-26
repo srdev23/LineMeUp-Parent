@@ -228,8 +228,13 @@ class _PickupHomeScreenState extends State<PickupHomeScreen> {
         iconSize = 80;
         break;
       case PickupState.waitingActiveNotQueued:
-        statusText = 'Approaching';
-        statusSubtext = 'You are near the pickup zone';
+        if (provider.isInsideZone) {
+          statusText = 'Ready to Join';
+          statusSubtext = 'You are in the pickup zone';
+        } else {
+          statusText = 'Approaching';
+          statusSubtext = 'You are near the pickup zone';
+        }
         statusColor = Colors.blue;
         backgroundColor = Colors.blue[50]!;
         statusIcon = Icons.location_on;
@@ -334,8 +339,149 @@ class _PickupHomeScreenState extends State<PickupHomeScreen> {
               ),
             ),
           ],
+          
+          // Action Buttons
+          const SizedBox(height: 32),
+          _buildActionButtons(provider, context),
         ],
       ),
+    );
+  }
+
+  Widget _buildActionButtons(PickupProvider provider, BuildContext context) {
+    return Column(
+      children: [
+        // Join Queue Button
+        if (provider.canJoinQueue)
+          SizedBox(
+            width: double.infinity,
+            height: 56,
+            child: ElevatedButton.icon(
+              onPressed: provider.isLoading
+                  ? null
+                  : () async {
+                      final success = await provider.joinQueue();
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              success
+                                  ? 'Successfully joined the queue!'
+                                  : provider.errorMessage ??
+                                      'Failed to join queue',
+                            ),
+                            backgroundColor:
+                                success ? Colors.green : Colors.red,
+                            duration: const Duration(seconds: 2),
+                          ),
+                        );
+                      }
+                    },
+              icon: provider.isLoading
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                      ),
+                    )
+                  : const Icon(Icons.queue, size: 24),
+              label: Text(
+                provider.isLoading ? 'Joining...' : 'Join Queue',
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blue,
+                foregroundColor: Colors.white,
+                elevation: 2,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+              ),
+            ),
+          ),
+
+        // Mark as Picked Up Button
+        if (provider.canMarkPickedUp && !provider.isLoading) ...[
+          if (provider.canJoinQueue) const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            height: 56,
+            child: ElevatedButton.icon(
+              onPressed: provider.isLoading
+                  ? null
+                  : () async {
+                      final confirmed = await showDialog<bool>(
+                        context: context,
+                        builder: (context) => AlertDialog(
+                          title: const Text('Confirm Pickup'),
+                          content: const Text(
+                              'Have you picked up your child(ren)?'),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(context, false),
+                              child: const Text('Cancel'),
+                            ),
+                            ElevatedButton(
+                              onPressed: () => Navigator.pop(context, true),
+                              child: const Text('Confirm'),
+                            ),
+                          ],
+                        ),
+                      );
+
+                      if (confirmed == true && mounted) {
+                        final success = await provider.markAsPickedUp();
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                success
+                                    ? 'Marked as picked up successfully!'
+                                    : provider.errorMessage ??
+                                        'Failed to mark as picked up',
+                              ),
+                              backgroundColor:
+                                  success ? Colors.green : Colors.red,
+                              duration: const Duration(seconds: 2),
+                            ),
+                          );
+                        }
+                      }
+                    },
+              icon: provider.isLoading
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                      ),
+                    )
+                  : const Icon(Icons.check_circle, size: 24),
+              label: Text(
+                provider.isLoading ? 'Updating...' : 'Mark as Picked Up',
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.green,
+                foregroundColor: Colors.white,
+                elevation: 2,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ],
     );
   }
 

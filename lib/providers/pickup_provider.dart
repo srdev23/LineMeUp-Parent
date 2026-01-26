@@ -27,8 +27,9 @@ class PickupProvider with ChangeNotifier {
   PickupState _pickupState = PickupState.pickupNotActive;
   int _queuePosition = 0;
   bool _isInsideZone = false;
-  final bool _isLoading = false;
+  bool _isLoading = false;
   String? _errorMessage;
+  bool _disposed = false;
 
   Parent? get parent => _parent;
   List<Student> get selectedStudents => _selectedStudents;
@@ -40,6 +41,21 @@ class PickupProvider with ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
 
+  // Button visibility getters
+  bool get canJoinQueue {
+    return _school != null &&
+        _school!.pickupActive &&
+        _isInsideZone &&
+        _queueItem == null &&
+        _selectedStudents.isNotEmpty;
+  }
+
+  bool get canMarkPickedUp {
+    return _queueItem != null &&
+        (_queueItem!.status == QueueStatus.waiting ||
+            _queueItem!.status == QueueStatus.ready);
+  }
+
   void initialize(Parent parent, List<Student> students, School school) {
     _parent = parent;
     _selectedStudents = students;
@@ -48,10 +64,11 @@ class PickupProvider with ChangeNotifier {
   }
 
   void _startMonitoring() {
-    if (_school == null || _parent == null) return;
+    if (_school == null || _parent == null || _disposed) return;
 
     // Stream school updates
     _firestoreService.streamSchool(_school!.id).listen((school) {
+      if (_disposed) return;
       if (school != null) {
         _school = school;
         _updatePickupState();
@@ -63,6 +80,7 @@ class PickupProvider with ChangeNotifier {
     _firestoreService
         .streamQueueItem(_school!.id, _parent!.id)
         .listen((queueItem) {
+      if (_disposed) return;
       _queueItem = queueItem;
       if (queueItem != null) {
         _updateQueuePosition();
@@ -73,6 +91,7 @@ class PickupProvider with ChangeNotifier {
 
     // Start location tracking
     _locationService.startLocationTracking((position) {
+      if (_disposed) return;
       _onLocationUpdate(position);
     });
   }
@@ -80,18 +99,11 @@ class PickupProvider with ChangeNotifier {
   void _onLocationUpdate(Position position) {
     if (_school == null) return;
 
-    bool wasInsideZone = _isInsideZone;
     _isInsideZone =
         _locationService.isInsidePickupZone(position, _school!);
 
-    if (_isInsideZone && !wasInsideZone) {
-      // Entered zone
-      _onEnteredZone(position);
-    } else if (!_isInsideZone && wasInsideZone && _queueItem != null) {
-      // Left zone
-      _onLeftZone();
-    } else if (_isInsideZone && _queueItem != null) {
-      // Update location in queue item
+    // Update location in queue item in real-time if in queue
+    if (_queueItem != null && _isInsideZone) {
       _updateQueueItemLocation(position);
     }
 
@@ -99,44 +111,19 @@ class PickupProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> _onEnteredZone(Position position) async {
-    if (_school == null || _parent == null || _selectedStudents.isEmpty) {
-      return;
-    }
-
-    if (_school!.pickupActive) {
-      // Create or update queue item
-      List<String> studentIds =
-          _selectedStudents.map((s) => s.id).toList();
-      _queueItem = await _firestoreService.getOrCreateQueueItem(
-        schoolId: _school!.id,
-        parentId: _parent!.id,
-        studentIds: studentIds,
-        lat: position.latitude,
-        lng: position.longitude,
-      );
-      if (_queueItem != null) {
-        _updateQueuePosition();
-      }
-    }
-  }
-
-  Future<void> _onLeftZone() async {
-    if (_queueItem != null &&
-        _queueItem!.status == QueueStatus.pickedUp) {
-      // Already picked up, stop tracking
-      _locationService.stopLocationTracking();
-    } else if (_queueItem != null &&
-        _queueItem!.status == QueueStatus.ready) {
-      // Mark as picked up when leaving zone after ready
-      await _firestoreService.markAsPickedUp(_queueItem!.id);
-      _locationService.stopLocationTracking();
-    }
-  }
-
   Future<void> _updateQueueItemLocation(Position position) async {
-    // Location updates are handled automatically by Firestore listeners
-    // This can be used for manual updates if needed
+    if (_queueItem == null) return;
+
+    try {
+      await _firestoreService.updateQueueItemLocation(
+        _queueItem!.id,
+        position.latitude,
+        position.longitude,
+      );
+    } catch (e) {
+      // Silently handle location update errors
+      print('Error updating queue item location: $e');
+    }
   }
 
   Future<void> _updateQueuePosition() async {
@@ -166,15 +153,18 @@ class PickupProvider with ChangeNotifier {
       return;
     }
 
+    // If not in queue, show "approaching" when outside zone
     if (_queueItem == null) {
       if (_isInsideZone) {
         _pickupState = PickupState.waitingActiveNotQueued;
       } else {
-        _pickupState = PickupState.pickupNotActive;
+        // Outside zone - show "approaching"
+        _pickupState = PickupState.waitingActiveNotQueued;
       }
       return;
     }
 
+    // In queue - show queue status
     switch (_queueItem!.status) {
       case QueueStatus.waiting:
         _pickupState = PickupState.queued;
@@ -188,8 +178,122 @@ class PickupProvider with ChangeNotifier {
     }
   }
 
+  // Manual queue management methods
+  Future<bool> joinQueue() async {
+    if (!canJoinQueue || _parent == null || _school == null) {
+      _errorMessage = 'Cannot join queue at this time';
+      notifyListeners();
+      return false;
+    }
+
+    _isLoading = true;
+    notifyListeners();
+
+    try {
+      Position? position = await _locationService.getCurrentLocation();
+      if (position == null) {
+        _errorMessage = 'Unable to get your location';
+        _isLoading = false;
+        notifyListeners();
+        return false;
+      }
+
+      List<String> studentIds = _selectedStudents.map((s) => s.id).toList();
+      QueueItem? queueItem = await _firestoreService.createQueueItem(
+        schoolId: _school!.id,
+        parentId: _parent!.id,
+        studentIds: studentIds,
+        lat: position.latitude,
+        lng: position.longitude,
+      );
+
+      _isLoading = false;
+
+      if (queueItem != null) {
+        _queueItem = queueItem;
+        await _updateQueuePosition();
+        _updatePickupState();
+        _errorMessage = null;
+        notifyListeners();
+        return true;
+      } else {
+        _errorMessage = 'Failed to join queue';
+        notifyListeners();
+        return false;
+      }
+    } catch (e) {
+      _isLoading = false;
+      _errorMessage = 'Error joining queue: ${e.toString()}';
+      notifyListeners();
+      return false;
+    }
+  }
+
+  Future<bool> markAsPickedUp() async {
+    if (!canMarkPickedUp || _queueItem == null) {
+      _errorMessage = 'Cannot mark as picked up at this time';
+      notifyListeners();
+      return false;
+    }
+
+    _isLoading = true;
+    notifyListeners();
+
+    try {
+      await _firestoreService.markAsPickedUp(_queueItem!.id);
+      
+      // Immediately update local state to reflect the change
+      final updatedItem = QueueItem(
+        id: _queueItem!.id,
+        schoolId: _queueItem!.schoolId,
+        parentId: _queueItem!.parentId,
+        studentIds: _queueItem!.studentIds,
+        arrivalTime: _queueItem!.arrivalTime,
+        status: QueueStatus.pickedUp,
+        location: _queueItem!.location,
+      );
+      
+      _queueItem = updatedItem;
+      _queuePosition = 0; // Reset queue position when picked up
+      _isLoading = false;
+      _updatePickupState();
+      _errorMessage = null;
+      
+      // Force notify listeners to ensure UI updates
+      notifyListeners();
+      
+      return true;
+    } catch (e) {
+      _isLoading = false;
+      _errorMessage = 'Error marking as picked up: ${e.toString()}';
+      notifyListeners();
+      return false;
+    }
+  }
+
+  Future<bool> exitQueue() async {
+    if (_queueItem == null) {
+      return false;
+    }
+
+    try {
+      await _firestoreService.deleteQueueItem(_queueItem!.id);
+      _queueItem = null;
+      _queuePosition = 0;
+      _updatePickupState();
+      _errorMessage = null;
+      notifyListeners();
+      return true;
+    } catch (e) {
+      _errorMessage = 'Error exiting queue: ${e.toString()}';
+      notifyListeners();
+      return false;
+    }
+  }
+
   @override
   void dispose() {
+    _disposed = true;
     _locationService.dispose();
     super.dispose();
   }
