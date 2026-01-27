@@ -3,12 +3,14 @@ class Student {
   final String name;
   final String schoolId;
   final String parentId;
+  final String? photo;
 
   Student({
     required this.id,
     required this.name,
     required this.schoolId,
     required this.parentId,
+    this.photo,
   });
 
   factory Student.fromFirestore(Map<String, dynamic> data, String id) {
@@ -17,6 +19,7 @@ class Student {
       name: data['name'] ?? '',
       schoolId: data['schoolId'] ?? '',
       parentId: data['parentId'] ?? '',
+      photo: data['photo'] as String?,
     );
   }
 
@@ -25,6 +28,7 @@ class Student {
       'name': name,
       'schoolId': schoolId,
       'parentId': parentId,
+      if (photo != null) 'photo': photo,
     };
   }
 }

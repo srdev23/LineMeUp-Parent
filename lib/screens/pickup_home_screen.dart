@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../providers/pickup_provider.dart';
 import '../providers/auth_provider.dart';
 import 'login_screen.dart';
@@ -200,23 +201,36 @@ class _PickupHomeScreenState extends State<PickupHomeScreen> {
             const SizedBox(height: 12),
             ...provider.selectedStudents.map(
               (student) => Padding(
-                padding: const EdgeInsets.only(bottom: 8.0),
+                padding: const EdgeInsets.only(bottom: 12.0),
                 child: Row(
                   children: [
-                    Container(
-                      width: 8,
-                      height: 8,
-                      decoration: BoxDecoration(
-                        color: Colors.blue,
-                        shape: BoxShape.circle,
-                      ),
+                    CircleAvatar(
+                      radius: 24,
+                      backgroundColor: Colors.blue.withValues(alpha: 0.1),
+                      backgroundImage: student.photo != null && student.photo!.isNotEmpty
+                          ? CachedNetworkImageProvider(student.photo!)
+                          : null,
+                      child: student.photo == null || student.photo!.isEmpty
+                          ? Text(
+                              student.name.isNotEmpty
+                                  ? student.name[0].toUpperCase()
+                                  : '?',
+                              style: TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.blue[700],
+                              ),
+                            )
+                          : null,
                     ),
-                    const SizedBox(width: 12),
-                    Text(
-                      student.name,
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w500,
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Text(
+                        student.name,
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
                     ),
                   ],

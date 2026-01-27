@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../providers/auth_provider.dart';
 import '../providers/student_provider.dart';
 import '../providers/pickup_provider.dart';
@@ -150,11 +151,35 @@ class _StudentSelectionScreenState extends State<StudentSelectionScreen> {
                     final isSelected = studentProvider.selectedStudents
                         .any((s) => s.id == student.id);
 
-                    return CheckboxListTile(
+                    return ListTile(
+                      leading: CircleAvatar(
+                        radius: 24,
+                        backgroundColor: Colors.grey[300],
+                        backgroundImage: student.photo != null && student.photo!.isNotEmpty
+                            ? CachedNetworkImageProvider(student.photo!)
+                            : null,
+                        child: student.photo == null || student.photo!.isEmpty
+                            ? Text(
+                                student.name.isNotEmpty
+                                    ? student.name[0].toUpperCase()
+                                    : '?',
+                                style: const TextStyle(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.grey,
+                                ),
+                              )
+                            : null,
+                      ),
                       title: Text(student.name),
                       subtitle: Text('School ID: ${student.schoolId}'),
-                      value: isSelected,
-                      onChanged: (value) {
+                      trailing: Checkbox(
+                        value: isSelected,
+                        onChanged: (value) {
+                          studentProvider.toggleStudentSelection(student);
+                        },
+                      ),
+                      onTap: () {
                         studentProvider.toggleStudentSelection(student);
                       },
                     );
