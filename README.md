@@ -1,4 +1,4 @@
-# Parent Pickup Mobile App
+# LineMeUp - Parent Pickup Mobile App
 
 A Flutter mobile application for parents to manage school pickup queue using Firebase and GPS tracking.
 

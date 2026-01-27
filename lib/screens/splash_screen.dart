@@ -54,7 +54,7 @@ class _SplashScreenState extends State<SplashScreen> {
             ),
             const SizedBox(height: 24),
             const Text(
-              'Parent Pickup',
+              'LineMeUp',
               style: TextStyle(
                 fontSize: 24,
                 fontWeight: FontWeight.bold,

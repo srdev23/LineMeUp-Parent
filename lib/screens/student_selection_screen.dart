@@ -4,6 +4,7 @@ import '../providers/auth_provider.dart';
 import '../providers/student_provider.dart';
 import '../providers/pickup_provider.dart';
 import 'pickup_home_screen.dart';
+import 'login_screen.dart';
 
 class StudentSelectionScreen extends StatefulWidget {
   const StudentSelectionScreen({super.key});
@@ -20,6 +21,9 @@ class _StudentSelectionScreenState extends State<StudentSelectionScreen> {
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       final studentProvider =
           Provider.of<StudentProvider>(context, listen: false);
+      
+      // Clear any previous selections
+      studentProvider.clearSelection();
 
       if (authProvider.currentParent != null) {
         studentProvider.loadStudents(authProvider.currentParent!.id);
@@ -74,9 +78,26 @@ class _StudentSelectionScreenState extends State<StudentSelectionScreen> {
           IconButton(
             icon: const Icon(Icons.logout),
             onPressed: () async {
-              final authProvider =
-                  Provider.of<AuthProvider>(context, listen: false);
-              await authProvider.signOut();
+              if (!mounted) return;
+              
+              // Navigate away FIRST
+              Navigator.of(context).pushAndRemoveUntil(
+                MaterialPageRoute(builder: (_) => const LoginScreen()),
+                (route) => false,
+              );
+              
+              // Then cleanup and sign out
+              try {
+                final authProvider =
+                    Provider.of<AuthProvider>(context, listen: false);
+                final studentProvider =
+                    Provider.of<StudentProvider>(context, listen: false);
+                
+                studentProvider.cleanup();
+                await authProvider.signOut();
+              } catch (e) {
+                print('Logout error: $e');
+              }
             },
           ),
         ],
@@ -126,8 +147,8 @@ class _StudentSelectionScreenState extends State<StudentSelectionScreen> {
                   itemCount: studentProvider.students.length,
                   itemBuilder: (context, index) {
                     final student = studentProvider.students[index];
-                    final isSelected =
-                        studentProvider.selectedStudents.contains(student);
+                    final isSelected = studentProvider.selectedStudents
+                        .any((s) => s.id == student.id);
 
                     return CheckboxListTile(
                       title: Text(student.name),

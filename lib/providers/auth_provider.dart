@@ -20,16 +20,32 @@ class AuthProvider with ChangeNotifier {
     _init();
   }
 
+  bool _isExplicitSignIn = false; // Track if sign-in was explicit (via OTP)
+  bool _isSigningOut = false; // Track if we're in the process of signing out
+
   void _init() {
     _authService.authStateChanges.listen((user) async {
+      // Ignore auth state changes during sign out process
+      if (_isSigningOut) {
+        return;
+      }
+      
       if (user == null) {
         _currentParent = null;
+        _isExplicitSignIn = false;
         notifyListeners();
       } else {
-        // User is signed in, verify parent exists
-        // This handles auto-verification case
-        if (_currentParent == null) {
+        // Only verify parent if this was an explicit sign-in via OTP
+        // Don't auto-verify on unexpected auth state changes
+        if (_isExplicitSignIn && _currentParent == null) {
           await _verifyParent(user.phoneNumber ?? '');
+        } else if (!_isExplicitSignIn) {
+          // User is signed in but not via explicit OTP - sign them out
+          // This prevents auto-login after logout or from auto-verification
+          print('⚠️ Unexpected auth state - signing out to require OTP');
+          _isSigningOut = true;
+          await signOut();
+          _isSigningOut = false;
         }
       }
     });
@@ -77,35 +93,11 @@ class AuthProvider with ChangeNotifier {
         notifyListeners();
       },
       onVerificationCompleted: (credential) async {
-        // Handle auto-verification (Android)
-        print('✅ Auto-verification callback triggered');
-        try {
-          // Sign in with the credential first
-          await _authService.signInWithCredential(credential);
-          
-          // Wait a bit for auth state to update
-          await Future.delayed(const Duration(milliseconds: 500));
-          
-          // Now verify parent
-          Parent? parent = await _authService.verifyCurrentUser();
-          if (parent != null) {
-            _currentParent = parent;
-            _isLoading = false;
-            _errorMessage = null;
-            notifyListeners();
-          } else {
-            _isLoading = false;
-            _errorMessage = 'Your phone number is not registered with the school.';
-            await signOut();
-            notifyListeners();
-          }
-        } catch (e) {
-          print('❌ Auto-verification error: $e');
-          _isLoading = false;
-          _errorMessage = 'Verification failed: ${e.toString()}';
-          await signOut();
-          notifyListeners();
-        }
+        // DISABLE auto-verification - require OTP input
+        // This prevents bypassing OTP verification
+        print('⚠️ Auto-verification detected but disabled - OTP required');
+        // Don't sign in automatically - user must enter OTP
+        // The verification ID will be sent via codeSent callback
       },
     );
   }
@@ -122,12 +114,16 @@ class AuthProvider with ChangeNotifier {
     notifyListeners();
 
     try {
+      // Mark as explicit sign-in before verifying
+      _isExplicitSignIn = true;
+      
       Parent? parent = await _authService.signInWithOTP(
         verificationId: verificationId,
         smsCode: smsCode,
       );
 
       if (parent == null) {
+        _isExplicitSignIn = false;
         _errorMessage = 'Your phone number is not registered with the school.';
         _isLoading = false;
         notifyListeners();
@@ -141,11 +137,13 @@ class AuthProvider with ChangeNotifier {
       notifyListeners();
       return true;
     } on FirebaseAuthException catch (e) {
+      _isExplicitSignIn = false;
       _errorMessage = _getAuthErrorMessage(e);
       _isLoading = false;
       notifyListeners();
       return false;
     } catch (e) {
+      _isExplicitSignIn = false;
       _errorMessage = 'Sign in failed: ${e.toString()}';
       _isLoading = false;
       notifyListeners();
@@ -167,10 +165,18 @@ class AuthProvider with ChangeNotifier {
   }
 
   Future<void> signOut() async {
-    await _authService.signOut();
+    _isSigningOut = true;
+    _isExplicitSignIn = false;
+    _verificationId = null;
     _currentParent = null;
     _errorMessage = null;
-    notifyListeners();
+    
+    try {
+      await _authService.signOut();
+    } finally {
+      _isSigningOut = false;
+      notifyListeners();
+    }
   }
 
   void clearError() {

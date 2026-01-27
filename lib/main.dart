@@ -52,7 +52,7 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => PickupProvider()),
       ],
       child: MaterialApp(
-        title: 'Parent Pickup',
+        title: 'LineMeUp',
         theme: ThemeData(
           colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
           useMaterial3: true,

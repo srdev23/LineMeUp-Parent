@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../providers/auth_provider.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import '../providers/auth_provider.dart' as app_auth;
 import 'student_selection_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -18,8 +19,36 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _isLoading = false;
 
   @override
+  void initState() {
+    super.initState();
+    // Reset login state when screen is shown
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _resetLoginState();
+    });
+  }
+
+  void _resetLoginState() {
+    setState(() {
+      _isOtpSent = false;
+      _verificationId = null;
+      _isLoading = false;
+      _phoneController.clear();
+      _otpController.clear();
+    });
+    
+    // Ensure user is signed out when login screen is shown
+    // This prevents auto-login after logout
+    final authProvider = Provider.of<app_auth.AuthProvider>(context, listen: false);
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser != null || authProvider.isAuthenticated) {
+      print('🔒 Forcing sign out on login screen - user should not be authenticated');
+      authProvider.signOut();
+    }
+  }
+
+  @override
   void dispose() {
-    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final authProvider = Provider.of<app_auth.AuthProvider>(context, listen: false);
     authProvider.removeListener(_onAuthProviderChanged);
     _phoneController.dispose();
     _otpController.dispose();
@@ -53,7 +82,7 @@ class _LoginScreenState extends State<LoginScreen> {
         _isLoading = true;
       });
 
-      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final authProvider = Provider.of<app_auth.AuthProvider>(context, listen: false);
       
       // Clear any previous errors
       authProvider.clearError();
@@ -68,15 +97,9 @@ class _LoginScreenState extends State<LoginScreen> {
 
       if (!mounted) return;
 
-      // Check if user was auto-verified (Android)
-      if (authProvider.isAuthenticated) {
-        authProvider.removeListener(_onAuthProviderChanged);
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (_) => const StudentSelectionScreen()),
-        );
-        return;
-      }
-
+      // Don't check for auto-authentication - require OTP input
+      // Auto-verification is disabled in AuthProvider
+      
       // Check for errors or success
       _checkAuthState();
     } catch (e) {
@@ -97,7 +120,7 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   void _checkAuthState() {
-    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final authProvider = Provider.of<app_auth.AuthProvider>(context, listen: false);
     
     if (authProvider.errorMessage != null) {
       setState(() {
@@ -140,7 +163,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
     // Get verification ID from provider or local state
     String? verificationId = _verificationId ?? 
-        Provider.of<AuthProvider>(context, listen: false).verificationId;
+        Provider.of<app_auth.AuthProvider>(context, listen: false).verificationId;
     
     if (verificationId == null || verificationId.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -157,7 +180,7 @@ class _LoginScreenState extends State<LoginScreen> {
       _isLoading = true;
     });
 
-    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final authProvider = Provider.of<app_auth.AuthProvider>(context, listen: false);
     
     bool success = await authProvider.signInWithOTP(
       verificationId,
@@ -237,8 +260,9 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
               ],
               const SizedBox(height: 32),
-              Consumer<AuthProvider>(
-                builder: (context, authProvider, child) {
+              Builder(
+                builder: (context) {
+                  final authProvider = Provider.of<app_auth.AuthProvider>(context);
                   final isLoading = _isLoading || authProvider.isLoading;
                   
                   if (isLoading) {

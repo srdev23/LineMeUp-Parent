@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
+import 'dart:async';
 import '../services/firestore_service.dart';
 import '../services/location_service.dart';
 import '../models/parent.dart';
@@ -30,6 +31,8 @@ class PickupProvider with ChangeNotifier {
   bool _isLoading = false;
   String? _errorMessage;
   bool _disposed = false;
+  StreamSubscription? _schoolSubscription;
+  StreamSubscription? _queueSubscription;
 
   Parent? get parent => _parent;
   List<Student> get selectedStudents => _selectedStudents;
@@ -57,37 +60,85 @@ class PickupProvider with ChangeNotifier {
   }
 
   void initialize(Parent parent, List<Student> students, School school) {
+    // Reset state first to clear any previous session data
+    _resetState();
+    
     _parent = parent;
-    _selectedStudents = students;
+    _selectedStudents = List.from(students); // Create a copy to avoid reference issues
     _school = school;
+    _disposed = false; // Reset disposed flag for new session
     _startMonitoring();
+  }
+  
+  void _resetState({bool keepDisposed = false}) {
+    // Stop any existing monitoring
+    _locationService.stopLocationTracking();
+    _schoolSubscription?.cancel();
+    _queueSubscription?.cancel();
+    _schoolSubscription = null;
+    _queueSubscription = null;
+    
+    // Clear all state
+    _parent = null;
+    _selectedStudents.clear();
+    _school = null;
+    _queueItem = null;
+    _pickupState = PickupState.pickupNotActive;
+    _queuePosition = 0;
+    _isInsideZone = false;
+    _isLoading = false;
+    _errorMessage = null;
+    
+    // Only reset disposed flag if not cleaning up
+    if (!keepDisposed) {
+      _disposed = false;
+    }
+    
+    notifyListeners();
   }
 
   void _startMonitoring() {
-    if (_school == null || _parent == null || _disposed) return;
+    if (_school == null || _parent == null) return;
+    
+    // Don't start if already monitoring
+    if (_schoolSubscription != null || _queueSubscription != null) {
+      return;
+    }
 
     // Stream school updates
-    _firestoreService.streamSchool(_school!.id).listen((school) {
-      if (_disposed) return;
-      if (school != null) {
-        _school = school;
-        _updatePickupState();
-        notifyListeners();
-      }
-    });
+    _schoolSubscription = _firestoreService.streamSchool(_school!.id).listen(
+      (school) {
+        if (_disposed) return;
+        if (school != null) {
+          _school = school;
+          _updatePickupState();
+          notifyListeners();
+        }
+      },
+      onError: (error) {
+        // Silently handle errors (e.g., permission denied after logout)
+        if (_disposed) return;
+      },
+    );
 
     // Stream queue item updates
-    _firestoreService
+    _queueSubscription = _firestoreService
         .streamQueueItem(_school!.id, _parent!.id)
-        .listen((queueItem) {
-      if (_disposed) return;
-      _queueItem = queueItem;
-      if (queueItem != null) {
-        _updateQueuePosition();
-      }
-      _updatePickupState();
-      notifyListeners();
-    });
+        .listen(
+      (queueItem) {
+        if (_disposed) return;
+        _queueItem = queueItem;
+        if (queueItem != null) {
+          _updateQueuePosition();
+        }
+        _updatePickupState();
+        notifyListeners();
+      },
+      onError: (error) {
+        // Silently handle errors (e.g., permission denied after logout)
+        if (_disposed) return;
+      },
+    );
 
     // Start location tracking
     _locationService.startLocationTracking((position) {
@@ -291,10 +342,26 @@ class PickupProvider with ChangeNotifier {
     }
   }
 
+  // Cleanup method to stop tracking without disposing the provider
+  // This should be called before sign out to prevent errors
+  void cleanup() {
+    if (_disposed) return;
+    
+    // Reset all state to prevent stale data in next session
+    // Keep disposed flag false so provider can be reused
+    _resetState(keepDisposed: false);
+    
+    // Don't call super.dispose() here - let Provider framework handle it
+  }
+
   @override
   void dispose() {
     _disposed = true;
     _locationService.dispose();
+    _schoolSubscription?.cancel();
+    _queueSubscription?.cancel();
+    _schoolSubscription = null;
+    _queueSubscription = null;
     super.dispose();
   }
 }

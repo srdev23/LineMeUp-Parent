@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/pickup_provider.dart';
 import '../providers/auth_provider.dart';
+import 'login_screen.dart';
 
 class PickupHomeScreen extends StatefulWidget {
   const PickupHomeScreen({super.key});
@@ -26,19 +27,45 @@ class _PickupHomeScreenState extends State<PickupHomeScreen> {
             icon: const Icon(Icons.logout),
             tooltip: 'Logout',
             onPressed: () async {
-              final authProvider =
-                  Provider.of<AuthProvider>(context, listen: false);
-              final pickupProvider =
-                  Provider.of<PickupProvider>(context, listen: false);
-              pickupProvider.dispose();
-              await authProvider.signOut();
+              if (!mounted) return;
+              
+              // Navigate away FIRST to prevent widget access errors
+              Navigator.of(context).pushAndRemoveUntil(
+                MaterialPageRoute(builder: (_) => const LoginScreen()),
+                (route) => false,
+              );
+              
+              // Then cleanup and sign out (after navigation to avoid context errors)
+              try {
+                final authProvider =
+                    Provider.of<AuthProvider>(context, listen: false);
+                final pickupProvider =
+                    Provider.of<PickupProvider>(context, listen: false);
+                
+                // Cleanup provider (stops streams and location tracking)
+                pickupProvider.cleanup();
+                
+                // Sign out
+                await authProvider.signOut();
+              } catch (e) {
+                print('Logout error: $e');
+                // Try to sign out anyway
+                try {
+                  final authProvider =
+                      Provider.of<AuthProvider>(context, listen: false);
+                  await authProvider.signOut();
+                } catch (_) {
+                  // Ignore errors
+                }
+              }
             },
           ),
         ],
       ),
       body: Consumer<PickupProvider>(
         builder: (context, pickupProvider, child) {
-          if (pickupProvider.school == null) {
+          // Check if provider needs initialization
+          if (pickupProvider.school == null || pickupProvider.selectedStudents.isEmpty) {
             return const Center(
               child: CircularProgressIndicator(),
             );
@@ -95,7 +122,7 @@ class _PickupHomeScreenState extends State<PickupHomeScreen> {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Theme.of(context).primaryColor.withOpacity(0.1),
+                color: Theme.of(context).primaryColor.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Icon(
@@ -150,7 +177,7 @@ class _PickupHomeScreenState extends State<PickupHomeScreen> {
                 Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: Colors.blue.withOpacity(0.1),
+                    color: Colors.blue.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: const Icon(
@@ -273,7 +300,7 @@ class _PickupHomeScreenState extends State<PickupHomeScreen> {
         color: backgroundColor,
         borderRadius: BorderRadius.circular(24),
         border: Border.all(
-          color: statusColor.withOpacity(0.3),
+          color: statusColor.withValues(alpha: 0.3),
           width: 2,
         ),
       ),
@@ -287,7 +314,7 @@ class _PickupHomeScreenState extends State<PickupHomeScreen> {
               shape: BoxShape.circle,
               boxShadow: [
                 BoxShadow(
-                  color: statusColor.withOpacity(0.2),
+                  color: statusColor.withValues(alpha: 0.2),
                   blurRadius: 20,
                   spreadRadius: 5,
                 ),
@@ -326,7 +353,7 @@ class _PickupHomeScreenState extends State<PickupHomeScreen> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
               decoration: BoxDecoration(
-                color: statusColor.withOpacity(0.1),
+                color: statusColor.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Text(

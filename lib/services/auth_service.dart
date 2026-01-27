@@ -26,14 +26,13 @@ class AuthService {
       await _auth.verifyPhoneNumber(
         phoneNumber: normalizedPhone,
         verificationCompleted: (PhoneAuthCredential credential) async {
-          print('✅ Auto-verification completed');
-          // Auto-verification completed (Android only)
+          print('⚠️ Auto-verification detected but disabled - requiring OTP input');
+          // DISABLED: Don't auto-sign in - require OTP verification
+          // This prevents bypassing OTP after logout
           if (onVerificationCompleted != null) {
             onVerificationCompleted(credential);
-          } else {
-            // Default: sign in and verify parent
-            await _handleAutoVerification(credential);
           }
+          // Don't call _handleAutoVerification - require OTP
         },
         verificationFailed: (FirebaseAuthException e) {
           print('❌ Verification failed: ${e.code} - ${e.message}');
@@ -67,14 +66,6 @@ class AuthService {
     }
   }
 
-  Future<void> _handleAutoVerification(PhoneAuthCredential credential) async {
-    try {
-      await _auth.signInWithCredential(credential);
-      // Parent verification will happen in auth state listener
-    } catch (e) {
-      // Handle error
-    }
-  }
 
   Future<Parent?> signInWithOTP({
     required String verificationId,
