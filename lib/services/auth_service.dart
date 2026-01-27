@@ -36,14 +36,7 @@ class AuthService {
         },
         verificationFailed: (FirebaseAuthException e) {
           print('❌ Verification failed: ${e.code} - ${e.message}');
-          String errorMessage = e.message ?? 'Verification failed';
-          if (e.code == 'invalid-phone-number') {
-            errorMessage = 'Invalid phone number format. Please use +1234567890';
-          } else if (e.code == 'too-many-requests') {
-            errorMessage = 'Too many requests. Please try again later.';
-          } else if (e.code == 'missing-client-identifier') {
-            errorMessage = 'Firebase not configured. Please check google-services.json';
-          }
+          String errorMessage = _getUserFriendlyError(e.code);
           onError(errorMessage);
         },
         codeSent: (String verificationId, int? resendToken) {
@@ -62,7 +55,26 @@ class AuthService {
     } catch (e, stackTrace) {
       print('💥 Exception in verifyPhoneNumber: $e');
       print('Stack trace: $stackTrace');
-      onError('Failed to send verification code: ${e.toString()}');
+      onError('Unable to send verification code. Please try again.');
+    }
+  }
+
+  String _getUserFriendlyError(String code) {
+    switch (code) {
+      case 'invalid-phone-number':
+        return 'Please enter a valid phone number with country code.';
+      case 'too-many-requests':
+        return 'Too many attempts. Please wait a few minutes and try again.';
+      case 'missing-client-identifier':
+        return 'App configuration error. Please contact support.';
+      case 'quota-exceeded':
+        return 'Service temporarily unavailable. Please try again later.';
+      case 'app-not-authorized':
+        return 'App configuration error. Please contact support.';
+      case 'network-request-failed':
+        return 'No internet connection. Please check your network.';
+      default:
+        return 'Something went wrong. Please try again.';
     }
   }
 
@@ -96,12 +108,12 @@ class AuthService {
 
       // Verify parent exists in Firestore
       return await _verifyParentInFirestore(phoneNumber);
-    } on FirebaseAuthException catch (e) {
+    } on FirebaseAuthException {
       await signOut();
-      throw Exception('Authentication failed: ${e.message}');
+      rethrow;
     } catch (e) {
       await signOut();
-      throw Exception('Sign in failed: ${e.toString()}');
+      rethrow;
     }
   }
 
@@ -168,4 +180,3 @@ class AuthService {
     await _auth.signInWithCredential(credential);
   }
 }
-

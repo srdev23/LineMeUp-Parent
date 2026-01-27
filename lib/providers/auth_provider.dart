@@ -74,9 +74,11 @@ class AuthProvider with ChangeNotifier {
   }
 
   Future<void> verifyPhoneNumber(String phoneNumber) async {
+    // Reset all state when starting a new verification
     _isLoading = true;
     _errorMessage = null;
     _verificationId = null;
+    _isExplicitSignIn = false; // Reset explicit sign-in flag
     notifyListeners();
 
     await _authService.verifyPhoneNumber(
@@ -104,7 +106,7 @@ class AuthProvider with ChangeNotifier {
 
   Future<bool> signInWithOTP(String verificationId, String smsCode) async {
     if (verificationId.isEmpty || smsCode.isEmpty) {
-      _errorMessage = 'Verification ID or OTP code is missing';
+      _errorMessage = 'Please enter the verification code.';
       notifyListeners();
       return false;
     }
@@ -124,7 +126,7 @@ class AuthProvider with ChangeNotifier {
 
       if (parent == null) {
         _isExplicitSignIn = false;
-        _errorMessage = 'Your phone number is not registered with the school.';
+        _errorMessage = 'This phone number is not registered. Please contact your school.';
         _isLoading = false;
         notifyListeners();
         return false;
@@ -144,7 +146,7 @@ class AuthProvider with ChangeNotifier {
       return false;
     } catch (e) {
       _isExplicitSignIn = false;
-      _errorMessage = 'Sign in failed: ${e.toString()}';
+      _errorMessage = 'Unable to sign in. Please try again.';
       _isLoading = false;
       notifyListeners();
       return false;
@@ -154,13 +156,17 @@ class AuthProvider with ChangeNotifier {
   String _getAuthErrorMessage(FirebaseAuthException e) {
     switch (e.code) {
       case 'invalid-verification-code':
-        return 'Invalid verification code. Please try again.';
+        return 'Incorrect code. Please check and try again.';
       case 'session-expired':
-        return 'Verification session expired. Please request a new code.';
+        return 'Session expired. Please request a new code.';
       case 'code-expired':
-        return 'Verification code expired. Please request a new code.';
+        return 'Code expired. Please request a new code.';
+      case 'invalid-credential':
+        return 'Incorrect code. Please check and try again.';
+      case 'network-request-failed':
+        return 'No internet connection. Please check your network.';
       default:
-        return e.message ?? 'Authentication failed';
+        return 'Unable to verify. Please try again.';
     }
   }
 
@@ -184,4 +190,3 @@ class AuthProvider with ChangeNotifier {
     notifyListeners();
   }
 }
-
