@@ -3,6 +3,7 @@ import 'package:geolocator/geolocator.dart';
 import 'dart:async';
 import '../services/firestore_service.dart';
 import '../services/location_service.dart';
+import '../services/notification_service.dart';
 import '../models/parent.dart';
 import '../models/student.dart';
 import '../models/school.dart';
@@ -24,9 +25,12 @@ class PickupProvider with ChangeNotifier {
   Parent? _parent;
   List<Student> _selectedStudents = [];
   School? _school;
+  bool? _previousPickupActive; // Track previous pickup active state
   QueueItem? _queueItem;
   PickupState _pickupState = PickupState.pickupNotActive;
+  PickupState _previousPickupState = PickupState.pickupNotActive;
   int _queuePosition = 0;
+  int _previousQueuePosition = 0;
   bool _isInsideZone = false;
   bool _isLoading = false;
   String? _errorMessage;
@@ -66,6 +70,7 @@ class PickupProvider with ChangeNotifier {
     _parent = parent;
     _selectedStudents = List.from(students); // Create a copy to avoid reference issues
     _school = school;
+    _previousPickupActive = school.pickupActive; // Initialize previous state
     _disposed = false; // Reset disposed flag for new session
     _startMonitoring();
   }
@@ -82,9 +87,12 @@ class PickupProvider with ChangeNotifier {
     _parent = null;
     _selectedStudents.clear();
     _school = null;
+    _previousPickupActive = null;
     _queueItem = null;
     _pickupState = PickupState.pickupNotActive;
+    _previousPickupState = PickupState.pickupNotActive;
     _queuePosition = 0;
+    _previousQueuePosition = 0;
     _isInsideZone = false;
     _isLoading = false;
     _errorMessage = null;
@@ -110,7 +118,19 @@ class PickupProvider with ChangeNotifier {
       (school) {
         if (_disposed) return;
         if (school != null) {
+          // Check if pickup active status changed
+          bool currentActive = school.pickupActive;
+          
+          // Notify if pickup status changed (only if we had a previous state)
+          if (_previousPickupActive != null && _previousPickupActive != currentActive) {
+            _handlePickupStatusChange(currentActive);
+          }
+          
           _school = school;
+          
+          // Update previous state for next comparison
+          _previousPickupActive = currentActive;
+          
           _updatePickupState();
           notifyListeners();
         }
@@ -129,7 +149,8 @@ class PickupProvider with ChangeNotifier {
         if (_disposed) return;
         _queueItem = queueItem;
         if (queueItem != null) {
-          _updateQueuePosition();
+          // Skip notification on stream updates - we'll handle it in state change
+          _updateQueuePosition(skipNotification: true);
         }
         _updatePickupState();
         notifyListeners();
@@ -177,56 +198,135 @@ class PickupProvider with ChangeNotifier {
     }
   }
 
-  Future<void> _updateQueuePosition() async {
+  Future<void> _updateQueuePosition({bool skipNotification = false}) async {
     if (_queueItem == null || _school == null) {
+      _previousQueuePosition = _queuePosition;
       _queuePosition = 0;
       return;
     }
 
+    _previousQueuePosition = _queuePosition;
     _queuePosition = await _firestoreService.getQueuePosition(
       _school!.id,
       _queueItem!.arrivalTime,
+      _queueItem!.id, // Exclude current item from position calculation
     );
+    
+    // Only trigger notification if explicitly requested and position changed
+    if (!skipNotification && 
+        _pickupState == PickupState.queued && 
+        _queuePosition != _previousQueuePosition && 
+        _queuePosition > 0 &&
+        _previousQueuePosition > 0) { // Only notify if we had a previous position
+      _handleStateChangeNotification();
+    }
   }
 
   void _updatePickupState() {
+    PickupState newState;
+    
     if (_school == null) {
-      _pickupState = PickupState.pickupNotActive;
-      return;
-    }
-
-    if (!_school!.pickupActive) {
+      newState = PickupState.pickupNotActive;
+    } else if (!_school!.pickupActive) {
       if (_isInsideZone) {
-        _pickupState = PickupState.waitingInsideZoneInactive;
+        newState = PickupState.waitingInsideZoneInactive;
       } else {
-        _pickupState = PickupState.pickupNotActive;
+        newState = PickupState.pickupNotActive;
       }
-      return;
-    }
-
-    // If not in queue, show "approaching" when outside zone
-    if (_queueItem == null) {
+    } else if (_queueItem == null) {
+      // If not in queue, show "approaching" when outside zone
       if (_isInsideZone) {
-        _pickupState = PickupState.waitingActiveNotQueued;
+        newState = PickupState.waitingActiveNotQueued;
       } else {
-        // Outside zone - show "approaching"
-        _pickupState = PickupState.waitingActiveNotQueued;
+        newState = PickupState.waitingActiveNotQueued;
       }
-      return;
+    } else {
+      // In queue - show queue status
+      switch (_queueItem!.status) {
+        case QueueStatus.waiting:
+          newState = PickupState.queued;
+          break;
+        case QueueStatus.ready:
+          newState = PickupState.ready;
+          break;
+        case QueueStatus.pickedUp:
+          newState = PickupState.pickedUp;
+          break;
+      }
     }
 
-    // In queue - show queue status
-    switch (_queueItem!.status) {
-      case QueueStatus.waiting:
-        _pickupState = PickupState.queued;
-        break;
-      case QueueStatus.ready:
-        _pickupState = PickupState.ready;
-        break;
-      case QueueStatus.pickedUp:
-        _pickupState = PickupState.pickedUp;
-        break;
+    // Check if state changed and trigger notifications
+    if (newState != _pickupState) {
+      _previousPickupState = _pickupState;
+      _pickupState = newState;
+      _handleStateChangeNotification();
     }
+  }
+
+  void _handleStateChangeNotification() {
+    // Only show notifications for important state changes
+    if (_previousPickupState == _pickupState) return;
+
+    String title;
+    String body;
+
+    switch (_pickupState) {
+      case PickupState.ready:
+        title = '🎉 Ready for Pickup!';
+        body = 'Your child is ready. Please proceed to the pickup area.';
+        break;
+      case PickupState.queued:
+        // Only show notification when first joining queue (transitioning TO queued state)
+        if (_previousPickupState != PickupState.queued) {
+          // Ensure position is calculated before showing notification
+          if (_queuePosition <= 0) {
+            // Position not ready yet, skip notification - it will be handled by position update
+            return;
+          }
+          title = '✅ Joined Queue';
+          body = 'You\'re now in line. Position: #$_queuePosition';
+        } else if (_queuePosition != _previousQueuePosition && 
+                   _queuePosition > 0 && 
+                   _previousQueuePosition > 0) {
+          // Only notify for position changes if we already had a position
+          title = '📍 Queue Update';
+          body = 'Your position: #$_queuePosition';
+        } else {
+          return; // Don't notify for minor updates
+        }
+        break;
+      case PickupState.pickedUp:
+        title = '✅ Pickup Complete';
+        body = 'Thank you for using LineMeUp!';
+        break;
+      default:
+        return; // Don't notify for other states
+    }
+
+    // Show notification
+    NotificationService().showStatusNotification(
+      title: title,
+      body: body,
+    );
+  }
+
+  void _handlePickupStatusChange(bool isActive) {
+    String title;
+    String body;
+
+    if (isActive) {
+      title = '✅ Pickup Service Started';
+      body = 'The pickup service is now active. You can join the queue when you arrive.';
+    } else {
+      title = '⏸️ Pickup Service Paused';
+      body = 'The pickup service is temporarily inactive. Please wait for it to resume.';
+    }
+
+    // Show notification
+    NotificationService().showStatusNotification(
+      title: title,
+      body: body,
+    );
   }
 
   // Manual queue management methods
@@ -262,8 +362,10 @@ class PickupProvider with ChangeNotifier {
 
       if (queueItem != null) {
         _queueItem = queueItem;
-        await _updateQueuePosition();
-        _updatePickupState();
+        // Update position first, then state
+        // This ensures position is set before notification is triggered
+        await _updateQueuePosition(skipNotification: true);
+        _updatePickupState(); // This will trigger notification with correct position
         _errorMessage = null;
         notifyListeners();
         return true;

@@ -161,7 +161,7 @@ class FirestoreService {
   }
 
   // Get queue position
-  Future<int> getQueuePosition(String schoolId, DateTime arrivalTime) async {
+  Future<int> getQueuePosition(String schoolId, DateTime arrivalTime, String? excludeQueueItemId) async {
     try {
       QuerySnapshot querySnapshot = await _firestore
           .collection('queueItems')
@@ -170,19 +170,29 @@ class FirestoreService {
           .orderBy('arrivalTime', descending: false)
           .get();
 
-      int position = 1;
+      int position = 0;
       for (var doc in querySnapshot.docs) {
         if (doc.data() == null) continue;
+        
+        // Skip the current item if excludeQueueItemId is provided
+        if (excludeQueueItemId != null && doc.id == excludeQueueItemId) {
+          continue;
+        }
+        
         final data = doc.data() as Map<String, dynamic>;
         QueueItem item = QueueItem.fromFirestore(data, doc.id);
-        if (item.arrivalTime.isBefore(arrivalTime) ||
-            item.arrivalTime.isAtSameMomentAs(arrivalTime)) {
+        
+        // Count items that arrived BEFORE this one (not including equal times)
+        if (item.arrivalTime.isBefore(arrivalTime)) {
           position++;
         } else {
+          // Since list is ordered, we can break here
           break;
         }
       }
-      return position;
+      
+      // Position is 1-indexed (first in line is position 1)
+      return position + 1;
     } catch (e) {
       return 0;
     }

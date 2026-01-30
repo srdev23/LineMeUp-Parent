@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../services/auth_service.dart';
+import '../services/notification_service.dart';
 import '../models/parent.dart';
 
 class AuthProvider with ChangeNotifier {
@@ -136,6 +137,14 @@ class AuthProvider with ChangeNotifier {
       _isLoading = false;
       _errorMessage = null;
       _verificationId = null; // Clear verification ID after successful login
+      
+      // Save FCM token for notifications
+      try {
+        await NotificationService().saveTokenToFirestore(parent.id);
+      } catch (e) {
+        print('⚠️ Failed to save FCM token: $e');
+      }
+      
       notifyListeners();
       return true;
     } on FirebaseAuthException catch (e) {
@@ -174,6 +183,16 @@ class AuthProvider with ChangeNotifier {
     _isSigningOut = true;
     _isExplicitSignIn = false;
     _verificationId = null;
+    
+    // Remove FCM token before signing out
+    if (_currentParent != null) {
+      try {
+        await NotificationService().removeTokenFromFirestore();
+      } catch (e) {
+        print('⚠️ Failed to remove FCM token: $e');
+      }
+    }
+    
     _currentParent = null;
     _errorMessage = null;
     

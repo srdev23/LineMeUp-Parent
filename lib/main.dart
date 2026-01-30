@@ -8,11 +8,7 @@ import 'providers/pickup_provider.dart';
 import 'services/notification_service.dart';
 import 'screens/splash_screen.dart';
 
-// Background message handler
-@pragma('vm:entry-point')
-Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  // Handle background messages
-}
+// Background message handler - defined in notification_service.dart
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
