@@ -15,14 +15,15 @@ dependencies {
   // TODO: Add the dependencies for Firebase products you want to use
   // When using the BoM, don't specify versions in Firebase dependencies
   implementation("com.google.firebase:firebase-analytics")
-
+  implementation("com.google.android.play:integrity:1.6.0")
+  implementation("com.google.firebase:firebase-auth")
 
   // Add the dependencies for any other desired Firebase products
   // https://firebase.google.com/docs/android/setup#available-libraries
 }
 
 android {
-    namespace = "com.schoolpickup.parent_pickup"
+    namespace = "com.linemeup.parent"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -38,7 +39,7 @@ android {
 
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.schoolpickup.parent_pickup"
+        applicationId = "com.linemeup.parent"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion

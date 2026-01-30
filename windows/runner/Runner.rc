@@ -89,13 +89,13 @@ BEGIN
     BEGIN
         BLOCK "040904e4"
         BEGIN
-            VALUE "CompanyName", "com.schoolpickup" "\0"
-            VALUE "FileDescription", "LineMeUp" "\0"
+            VALUE "CompanyName", "com.linemeup" "\0"
+            VALUE "FileDescription", "parent" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "parent_pickup" "\0"
-            VALUE "LegalCopyright", "Copyright (C) 2026 com.schoolpickup. All rights reserved." "\0"
-            VALUE "OriginalFilename", "parent_pickup.exe" "\0"
-            VALUE "ProductName", "LineMeUp" "\0"
+            VALUE "InternalName", "parent" "\0"
+            VALUE "LegalCopyright", "Copyright (C) 2026 com.linemeup. All rights reserved." "\0"
+            VALUE "OriginalFilename", "parent.exe" "\0"
+            VALUE "ProductName", "parent" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END

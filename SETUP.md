@@ -20,14 +20,14 @@
 ### 2. Add Android App to Firebase
 
 1. In Firebase Console, click "Add app" → Android
-2. Register app with package name: `com.schoolpickup.parent_pickup`
+2. Register app with package name: `com.linemeup.parent`
 3. Download `google-services.json`
 4. Place it in: `android/app/google-services.json`
 
 ### 3. Add iOS App to Firebase
 
 1. In Firebase Console, click "Add app" → iOS
-2. Register app with bundle ID: `com.schoolpickup.parent_pickup`
+2. Register app with bundle ID: `com.linemeup.parent`
 3. Download `GoogleService-Info.plist`
 4. Place it in: `ios/Runner/GoogleService-Info.plist`
 

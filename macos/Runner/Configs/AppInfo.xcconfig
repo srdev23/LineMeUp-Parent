@@ -5,10 +5,10 @@
 // 'flutter create' template.
 
 // The application's name. By default this is also the title of the Flutter window.
-PRODUCT_NAME = LineMeUp
+PRODUCT_NAME = parent
 
 // The application's bundle identifier
-PRODUCT_BUNDLE_IDENTIFIER = com.schoolpickup.parentPickup
+PRODUCT_BUNDLE_IDENTIFIER = com.linemeup.parent
 
 // The copyright displayed in application information
-PRODUCT_COPYRIGHT = Copyright © 2026 com.schoolpickup. All rights reserved.
+PRODUCT_COPYRIGHT = Copyright © 2026 com.linemeup. All rights reserved.

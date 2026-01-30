@@ -1,4 +1,4 @@
-package com.schoolpickup.parent_pickup
+package com.linemeup.parent
 
 import io.flutter.embedding.android.FlutterActivity
 
