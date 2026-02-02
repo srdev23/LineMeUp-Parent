@@ -1,6 +1,6 @@
 {
-    "name": "parent",
-    "short_name": "parent",
+    "name": "LineMeUp",
+    "short_name": "LineMeUp",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

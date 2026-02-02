@@ -152,8 +152,8 @@ class NotificationService {
       enableVibration: true,
       playSound: true,
       icon: '@drawable/ic_notification', // Small icon - MUST be white/transparent
-      largeIcon: const DrawableResourceAndroidBitmap('@mipmap/ic_launcher'), // Large icon - can be colored
-      color: const Color(0xFF3B82F6), // Tint color for the small icon
+      largeIcon: DrawableResourceAndroidBitmap('@mipmap/ic_launcher'), // Large icon - can be colored
+      color: Color(0xFF3B82F6), // Tint color for the small icon
       colorized: true, // Enable color tinting
     );
 
