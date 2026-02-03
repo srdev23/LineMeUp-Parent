@@ -235,31 +235,89 @@ flutter run
 
 ### 8. Testing on iOS
 
+**⚠️ IMPORTANT: iOS Simulator Limitations**
+
+iOS Simulators have several limitations:
+- ❌ **No Push Notifications** - APNS tokens unavailable (notifications won't work)
+- ⚠️ **Phone Auth Crashes** - Firebase Phone Auth is buggy on simulators
+- ⚠️ **No SMS** - Can't receive real verification codes
+
+**✅ Solution: Use Test Phone Numbers**
+
+**Configure Test Phone Numbers in Firebase:**
+
+1. Go to [Firebase Console](https://console.firebase.google.com)
+2. **Authentication** → **Sign-in method** → **Phone**
+3. Scroll down to **"Phone numbers for testing"**
+4. Click **"Add phone number"**
+5. Add test numbers:
+   - **Phone number:** `+1 650 555 3434`
+   - **Verification code:** `123456`
+   - Click **"Add"**
+
+**Using Test Numbers in App:**
+1. Enter test phone number: `+1 650 555 3434`
+2. Click "Send Code"
+3. Enter test code: `123456`
+4. Should sign in successfully!
+
+**For Real Testing: Use Physical iPhone**
+
+Phone Auth works reliably on real devices:
+```bash
+# Connect iPhone to Mac via USB
+flutter devices  # Verify iPhone appears
+flutter run -d [iPhone-device-id]
+```
+
+---
+
 **Test Checklist:**
 
-1. **Phone Authentication:**
-   - Sign in with phone number
-   - Should receive SMS code
-   - Sign in should work
+1. **Phone Authentication (Simulator with Test Number):**
+   - ✅ Use test phone number from Firebase Console
+   - ✅ Use test verification code (e.g., 123456)
+   - ✅ Sign in should work without SMS
 
-2. **Notifications:**
-   - After sign-in, should see welcome notification
-   - Test from Firebase Console:
+2. **Phone Authentication (Real Device):**
+   - ✅ Use real phone number
+   - ✅ Should receive SMS code
+   - ✅ Sign in should work
+
+3. **Notifications (Real Device ONLY):**
+   - ❌ Won't work on simulator (APNS not available)
+   - ✅ After sign-in on real device, should see welcome notification
+   - ✅ Test from Firebase Console:
      - Cloud Messaging → Send test message
      - Use FCM token from logs (iOS tokens are different from Android!)
 
-3. **Location:**
-   - App should request location permission
-   - Location should update in pickup queue
+4. **Location (Works on Both):**
+   - ✅ App should request location permission
+   - ✅ Location should update in pickup queue
+   - ⚠️ Simulator uses simulated location (Feature → Location in Simulator menu)
 
-4. **Background Notifications:**
-   - Close app (swipe up)
-   - Send notification from Firebase Console
-   - Should appear on lock screen
+5. **Background Notifications (Real Device ONLY):**
+   - ✅ Close app (swipe up)
+   - ✅ Send notification from Firebase Console
+   - ✅ Should appear on lock screen
 
 ---
 
 ## Common iOS Issues & Solutions
+
+### "APNS token has not been set yet" Error
+**Cause:** iOS Simulator doesn't support push notifications  
+**Solution:**
+- This is expected on simulators - notifications won't work
+- App will still function, just without notifications
+- For notification testing, use a real iPhone
+
+### Phone Auth Crash: "Fatal error: Unexpectedly found nil"
+**Cause:** Firebase Phone Auth bug on iOS simulators  
+**Solution:**
+- **Use test phone numbers** (see Testing section above)
+- Add test numbers in Firebase Console → Authentication → Phone numbers for testing
+- Or test on a **real iPhone** where Phone Auth works reliably
 
 ### "No such module 'Firebase'"
 **Solution:**

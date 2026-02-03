@@ -22,7 +22,8 @@ void main() async {
     await Firebase.initializeApp();
     print('✅ Firebase initialized successfully');
 
-    // Prefer Play Integrity over reCAPTCHA; optional: skip bot check for test numbers in debug.
+    // Configure Phone Auth
+    // Note: Phone Auth on iOS simulator has limitations - use real device for full testing
     await AuthService.configurePhoneAuth();
   } catch (e) {
     print('❌ Firebase initialization failed: $e');

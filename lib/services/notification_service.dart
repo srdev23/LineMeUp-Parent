@@ -92,12 +92,19 @@ class NotificationService {
         }
 
         // Get and log FCM token (critical for debugging)
-        String? token = await _messaging.getToken();
-        if (token != null) {
-          print('🔑 FCM Token: ${token.substring(0, 20)}...');
-          print('✅ FCM token obtained successfully');
-        } else {
-          print('⚠️ FCM token is null - notifications may not work!');
+        // NOTE: On iOS simulator, this will fail because APNS tokens are not available
+        String? token;
+        try {
+          token = await _messaging.getToken();
+          if (token != null) {
+            print('🔑 FCM Token: ${token.substring(0, 20)}...');
+            print('✅ FCM token obtained successfully');
+          } else {
+            print('⚠️ FCM token is null - notifications may not work!');
+          }
+        } catch (e) {
+          print('⚠️ Failed to get FCM token (iOS simulator doesn\'t support push notifications): $e');
+          // Continue initialization - app can still work without notifications
         }
 
         // Listen for token refresh
@@ -256,14 +263,22 @@ class NotificationService {
   // Save FCM token to Firestore
   Future<void> saveTokenToFirestore(String parentId) async {
     try {
-      String? token = await _messaging.getToken();
-      print('🔑 Attempting to save FCM token for parent: $parentId');
+      String? token;
       
-      if (token == null) {
-        print('⚠️ FCM token is null, retrying...');
-        // Sometimes token takes time to generate, especially on first launch
-        await Future.delayed(const Duration(seconds: 2));
+      try {
         token = await _messaging.getToken();
+        print('🔑 Attempting to save FCM token for parent: $parentId');
+        
+        if (token == null) {
+          print('⚠️ FCM token is null, retrying...');
+          // Sometimes token takes time to generate, especially on first launch
+          await Future.delayed(const Duration(seconds: 2));
+          token = await _messaging.getToken();
+        }
+      } catch (e) {
+        print('⚠️ Cannot get FCM token (iOS simulator doesn\'t support push): $e');
+        // Continue without token - app still works, just no notifications
+        return;
       }
       
       if (token != null && parentId.isNotEmpty) {
@@ -277,7 +292,7 @@ class NotificationService {
         });
         print('✅ FCM token saved successfully for parent: $parentId');
       } else {
-        print('❌ FCM token is still null or parentId is empty');
+        print('⚠️ FCM token is null or parentId is empty - skipping token save');
       }
     } catch (e, stackTrace) {
       print('❌ Error saving FCM token: $e');
@@ -304,7 +319,7 @@ class NotificationService {
     try {
       return await _messaging.getToken();
     } catch (e) {
-      print('❌ Error getting FCM token: $e');
+      print('⚠️ Cannot get FCM token (iOS simulator doesn\'t support push): $e');
       return null;
     }
   }

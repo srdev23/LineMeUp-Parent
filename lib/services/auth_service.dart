@@ -40,12 +40,25 @@ class AuthService {
 
   User? get currentUser => _auth.currentUser;
 
-  /// Configure phone auth to prefer Play Integrity (no reCAPTCHA redirect when possible).
-  /// In debug, disables app verification for whitelisted test numbers (add them in Firebase Console).
+  /// Configure phone auth settings
+  /// - Android: Prefer Play Integrity over reCAPTCHA
+  /// - iOS: Enable app verification testing for simulators
   static Future<void> configurePhoneAuth() async {
-    await FirebaseAuth.instance.setSettings(forceRecaptchaFlow: false);
-    if (kDebugMode) {
-      await FirebaseAuth.instance.setSettings(appVerificationDisabledForTesting: true);
+    try {
+      if (kDebugMode) {
+        // Enable test mode for development/simulators
+        await FirebaseAuth.instance.setSettings(
+          appVerificationDisabledForTesting: true,
+        );
+        print('✅ Phone Auth configured for testing (debug mode)');
+      }
+      
+      // Android: Prefer Play Integrity (no reCAPTCHA)
+      await FirebaseAuth.instance.setSettings(forceRecaptchaFlow: false);
+      print('✅ Phone Auth configured successfully');
+    } catch (e) {
+      print('⚠️ Phone Auth configuration warning: $e');
+      // Continue anyway - not critical
     }
   }
 
