@@ -1,5 +1,11 @@
 # Setup Guide
 
+**📱 Platform-Specific Setup:**
+- **Android:** Follow instructions below ⬇️
+- **iOS:** See [IOS_SETUP.md](IOS_SETUP.md) for complete iOS setup (requires Mac) 🍎
+
+---
+
 ## Prerequisites
 
 1. Flutter SDK installed (3.10.4 or higher)
@@ -140,6 +146,117 @@ flutter build apk --target-platform android-arm64,android-arm
 ```
 
 Do **not** use `--target-platform android-x64` when building for phones.
+
+## 🔔 Notification Setup & Testing
+
+### Testing Notifications Work
+
+After signing in, you should see a test notification: **"LineMeUp Notifications - Notifications are set up and ready!"**
+
+If you don't see this, follow the troubleshooting steps below.
+
+### Real Device vs Emulator Differences
+
+**Emulators** are more lenient with FCM configuration.
+**Real Android devices** require:
+- Proper AndroidManifest.xml metadata ✅ (added)
+- FCM token generation and storage ✅ (added)
+- Battery optimization disabled (see below)
+- Background app restrictions disabled (see below)
+
+### Checking FCM Token in Logs
+
+After sign-in, check the logs for:
+```
+🔑 FCM Token: [token prefix]...
+✅ FCM token saved successfully for parent: [parentId]
+```
+
+If you see `⚠️ FCM token is null`, there's a Firebase configuration issue.
+
+### Battery Optimization (Critical for Real Devices!)
+
+Many Android manufacturers (Xiaomi, Huawei, OnePlus, Oppo, Vivo, Samsung) have **aggressive battery optimization** that kills FCM.
+
+#### Disable Battery Optimization:
+
+**Method 1: App Settings**
+1. Open **Settings** → **Apps** → **LineMeUp**
+2. Tap **Battery** or **Power usage**
+3. Select **"No restrictions"** or **"Don't optimize"**
+4. Enable **"Allow background activity"**
+
+**Method 2: Developer Options** (if available)
+1. Enable **Developer Options** (tap Build Number 7 times)
+2. Go to **Settings** → **Developer Options**
+3. Enable **"Stay awake when charging"** (for testing)
+4. Disable **"Background check"**
+
+#### Manufacturer-Specific Settings:
+
+**Xiaomi/MIUI:**
+- Settings → Apps → Manage apps → LineMeUp
+- Enable **"Autostart"**
+- Battery saver → **"No restrictions"**
+- Other permissions → **"Display pop-up windows while running in background"**
+
+**Huawei/EMUI:**
+- Settings → Battery → App launch → LineMeUp
+- Set to **"Manual"**
+- Enable all three options: Auto-launch, Secondary launch, Run in background
+
+**OnePlus/OxygenOS:**
+- Settings → Battery → Battery optimization → LineMeUp
+- Select **"Don't optimize"**
+
+**Oppo/ColorOS:**
+- Settings → Battery → Power saving → LineMeUp
+- Disable **power saving**
+
+**Samsung/One UI:**
+- Settings → Apps → LineMeUp → Battery
+- Select **"Unrestricted"**
+- Settings → Battery → Background usage limits
+- Remove LineMeUp from **"Sleeping apps"** and **"Deep sleeping apps"**
+
+### Testing Notifications from Firebase Console
+
+1. Go to [Firebase Console](https://console.firebase.google.com)
+2. Select your project → **Cloud Messaging**
+3. Click **"Send your first message"**
+4. Fill in:
+   - **Notification title:** "Test"
+   - **Notification text:** "Testing notifications"
+5. Click **Next** → **Select target:**
+   - Choose **"User segment"** → **"All users"**
+   - OR use **"Single device"** with the FCM token from logs
+6. Click **Review** → **Publish**
+
+You should receive the notification within seconds.
+
+### Common Issues & Solutions
+
+#### Issue: "No FCM token generated"
+**Solution:**
+- Verify `google-services.json` is in `android/app/`
+- Rebuild: `flutter clean && flutter pub get && flutter run`
+
+#### Issue: "Notifications work on emulator but not real device"
+**Solution:**
+- Check battery optimization settings (see above)
+- Verify app has notification permission: Settings → Apps → LineMeUp → Notifications → **Enabled**
+- Check network connectivity (FCM requires internet)
+
+#### Issue: "FCM token saved but still no notifications"
+**Solution:**
+- Test from Firebase Console (see above)
+- Check Firestore: parents collection → your document → verify `fcmToken` field exists
+- Check logs for: `📨 Foreground message received` or `📨 Background message handler triggered`
+
+#### Issue: "Notifications delayed by minutes/hours"
+**Solution:**
+- This is battery optimization! Follow manufacturer-specific settings above
+- Enable **"High priority"** when sending from Firebase Console
 
 ## Troubleshooting
 

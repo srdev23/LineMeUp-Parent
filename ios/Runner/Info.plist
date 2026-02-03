@@ -45,5 +45,27 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	
+	<!-- Location Permissions -->
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>LineMeUp needs your location to show your position in the pickup queue and help your school coordinate pickups efficiently.</string>
+	<key>NSLocationAlwaysUsageDescription</key>
+	<string>LineMeUp needs background location access to update your position when you arrive at school for pickup.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>LineMeUp needs location access to update your position in the pickup queue when you arrive at school.</string>
+	
+	<!-- Notification Permissions -->
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>fetch</string>
+		<string>remote-notification</string>
+	</array>
+	
+	<!-- App Transport Security -->
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsArbitraryLoads</key>
+		<false/>
+	</dict>
 </dict>
 </plist>
