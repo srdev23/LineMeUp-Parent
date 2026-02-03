@@ -5,6 +5,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'providers/auth_provider.dart';
 import 'providers/student_provider.dart';
 import 'providers/pickup_provider.dart';
+import 'services/auth_service.dart';
 import 'services/notification_service.dart';
 import 'screens/splash_screen.dart';
 
@@ -12,16 +13,22 @@ import 'screens/splash_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
+
+  // Register FCM background handler FIRST (before any Firebase init)
+  FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+
   try {
     // Initialize Firebase
     await Firebase.initializeApp();
     print('✅ Firebase initialized successfully');
+
+    // Prefer Play Integrity over reCAPTCHA; optional: skip bot check for test numbers in debug.
+    await AuthService.configurePhoneAuth();
   } catch (e) {
     print('❌ Firebase initialization failed: $e');
     print('⚠️ Make sure google-services.json (Android) or GoogleService-Info.plist (iOS) is properly configured');
   }
-  
+
   try {
     // Initialize notification service
     final notificationService = NotificationService();
@@ -29,10 +36,7 @@ void main() async {
   } catch (e) {
     print('⚠️ Notification service initialization failed: $e');
   }
-  
-  // Set up background message handler
-  FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
-  
+
   runApp(const MyApp());
 }
 

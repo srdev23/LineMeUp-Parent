@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -67,6 +69,14 @@ class NotificationService {
             .resolvePlatformSpecificImplementation<
                 AndroidFlutterLocalNotificationsPlugin>()
             ?.createNotificationChannel(channel);
+
+        // Request notification permission on Android 13+ (required for notifications to show)
+        if (Platform.isAndroid) {
+          await _localNotifications
+              .resolvePlatformSpecificImplementation<
+                  AndroidFlutterLocalNotificationsPlugin>()
+              ?.requestNotificationsPermission();
+        }
 
         // Handle foreground messages
         FirebaseMessaging.onMessage.listen(_handleForegroundMessage);

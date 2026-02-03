@@ -51,34 +51,72 @@ class LocationService {
 
   // Start continuous location tracking
   void startLocationTracking(Function(Position) onLocationUpdate) {
-    if (_isTracking) return;
+    // Prevent starting if already tracking
+    if (_isTracking) {
+      print('⚠️ Location tracking already active, skipping start');
+      return;
+    }
+
+    // Ensure any existing stream is cancelled first
+    _positionStream?.cancel();
+    _positionStream = null;
 
     checkAndRequestPermissions().then((hasPermission) {
       if (!hasPermission) {
+        _isTracking = false;
         return;
       }
 
-      const LocationSettings locationSettings = LocationSettings(
-        accuracy: LocationAccuracy.high,
-        distanceFilter: 10, // Update every 10 meters
-      );
+      try {
+        const LocationSettings locationSettings = LocationSettings(
+          accuracy: LocationAccuracy.high,
+          distanceFilter: 10, // Update every 10 meters
+        );
 
-      _positionStream = Geolocator.getPositionStream(
-              locationSettings: locationSettings)
-          .listen((Position position) {
-        _currentPosition = position;
-        onLocationUpdate(position);
-      });
+        _positionStream = Geolocator.getPositionStream(
+                locationSettings: locationSettings)
+            .listen(
+          (Position position) {
+            _currentPosition = position;
+            onLocationUpdate(position);
+          },
+          onError: (error) {
+            print('⚠️ Location stream error: $error');
+            // Reset tracking state on error so it can be restarted
+            _isTracking = false;
+            _positionStream = null;
+          },
+          cancelOnError: false, // Keep stream alive despite errors
+        );
 
-      _isTracking = true;
+        _isTracking = true;
+        print('✅ Location tracking started');
+      } catch (e) {
+        print('❌ Error starting location tracking: $e');
+        _isTracking = false;
+        _positionStream = null;
+      }
     });
   }
 
   // Stop location tracking
   void stopLocationTracking() {
-    _positionStream?.cancel();
-    _positionStream = null;
-    _isTracking = false;
+    if (!_isTracking && _positionStream == null) {
+      // Already stopped, nothing to do
+      return;
+    }
+
+    try {
+      _positionStream?.cancel();
+      _positionStream = null;
+      _isTracking = false;
+      print('✅ Location tracking stopped');
+    } catch (e) {
+      print('⚠️ Error stopping location tracking: $e');
+      // Force reset state even if cancel fails
+      _positionStream = null;
+      _isTracking = false;
+    }
   }
 
   // Calculate distance between two points in meters
@@ -102,9 +140,11 @@ class LocationService {
     return distance <= school.pickupRadius;
   }
 
-  // Dispose
+  // Dispose - ensure complete cleanup
   void dispose() {
+    print('🧹 Disposing LocationService');
     stopLocationTracking();
+    _currentPosition = null;
   }
 }
 

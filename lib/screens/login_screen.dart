@@ -17,17 +17,25 @@ class _LoginScreenState extends State<LoginScreen> {
   String? _verificationId;
   bool _isOtpSent = false;
   bool _isLoading = false;
+  app_auth.AuthProvider? _authProviderForListener;
 
   @override
   void initState() {
     super.initState();
-    // Reset login state when screen is shown
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _resetLoginState();
+      if (mounted) _resetLoginState();
     });
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Cache provider so dispose() can remove listener without using context
+    _authProviderForListener ??= Provider.of<app_auth.AuthProvider>(context, listen: false);
+  }
+
   void _resetLoginState() {
+    if (!mounted) return;
     setState(() {
       _isOtpSent = false;
       _verificationId = null;
@@ -36,22 +44,19 @@ class _LoginScreenState extends State<LoginScreen> {
       _otpController.clear();
     });
 
-    // Ensure user is signed out when login screen is shown
-    // This prevents auto-login after logout
-    final authProvider =
-        Provider.of<app_auth.AuthProvider>(context, listen: false);
+    final authProvider = _authProviderForListener;
+    if (authProvider == null || !mounted) return;
     final currentUser = FirebaseAuth.instance.currentUser;
     if (currentUser != null || authProvider.isAuthenticated) {
-      print('🔒 Forcing sign out on login screen - user should not be authenticated');
       authProvider.signOut();
     }
   }
 
   @override
   void dispose() {
-    final authProvider =
-        Provider.of<app_auth.AuthProvider>(context, listen: false);
-    authProvider.removeListener(_onAuthProviderChanged);
+    // Use cached reference only; never use context in dispose
+    _authProviderForListener?.removeListener(_onAuthProviderChanged);
+    _authProviderForListener = null;
     _phoneController.dispose();
     _otpController.dispose();
     super.dispose();
@@ -63,6 +68,7 @@ class _LoginScreenState extends State<LoginScreen> {
     bool isSuccess = false,
     IconData? icon,
   }) {
+    if (!mounted) return;
     ScaffoldMessenger.of(context).hideCurrentSnackBar();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -133,7 +139,8 @@ class _LoginScreenState extends State<LoginScreen> {
       // Clear any previous errors
       authProvider.clearError();
 
-      // Start listening to provider changes
+      // Start listening to provider changes (keep ref so we can remove in dispose without context)
+      _authProviderForListener = authProvider;
       authProvider.addListener(_onAuthProviderChanged);
 
       await authProvider.verifyPhoneNumber(phoneNumber);
@@ -164,10 +171,12 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   void _checkAuthState() {
+    if (!mounted) return;
     final authProvider =
         Provider.of<app_auth.AuthProvider>(context, listen: false);
 
     if (authProvider.errorMessage != null) {
+      if (!mounted) return;
       setState(() {
         _isLoading = false;
       });
@@ -176,6 +185,7 @@ class _LoginScreenState extends State<LoginScreen> {
         isError: true,
       );
     } else if (authProvider.verificationId != null && !_isOtpSent) {
+      if (!mounted) return;
       setState(() {
         _verificationId = authProvider.verificationId;
         _isOtpSent = true;
@@ -236,25 +246,51 @@ class _LoginScreenState extends State<LoginScreen> {
     final authProvider =
         Provider.of<app_auth.AuthProvider>(context, listen: false);
 
-    bool success = await authProvider.signInWithOTP(
-      verificationId,
-      otpCode,
-    );
-
-    setState(() {
-      _isLoading = false;
-    });
+    bool success = false;
+    try {
+      // Wrap with timeout as a safety net (provider also has timeouts)
+      success = await authProvider.signInWithOTP(
+        verificationId,
+        otpCode,
+      ).timeout(
+        const Duration(seconds: 15),
+        onTimeout: () {
+          print('⏱️ UI-level timeout: signInWithOTP exceeded 15s');
+          if (mounted) {
+            _showSnackBar(
+              message: 'Request timed out. Please check your connection and try again.',
+              isError: true,
+            );
+          }
+          return false;
+        },
+      );
+    } catch (e) {
+      print('❌ Error in _verifyOTP: $e');
+      if (mounted) {
+        _showSnackBar(
+          message: authProvider.errorMessage ?? 'Verification failed. Please try again.',
+          isError: true,
+        );
+      }
+    } finally {
+      // Always clear loading state, even on timeout or error
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
 
     if (!mounted) return;
 
     if (success) {
+      // Remove listener before navigating so we don't use context after route is replaced
+      authProvider.removeListener(_onAuthProviderChanged);
+      _authProviderForListener = null;
+      if (!mounted) return;
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(builder: (_) => const StudentSelectionScreen()),
-      );
-    } else {
-      _showSnackBar(
-        message: authProvider.errorMessage ?? 'Verification failed. Please try again.',
-        isError: true,
       );
     }
   }

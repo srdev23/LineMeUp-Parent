@@ -119,6 +119,28 @@ flutter run
 flutter run -d ios
 ```
 
+### 9. Building APK for real devices
+
+**Important:** Real phones use **ARM** (arm64-v8a / armeabi-v7a). Emulators often use **x86_64**. If you build while an emulator is selected or use `--target-platform android-x64`, the APK will only contain x86_64 and will **crash on real devices** with:
+
+`Could not find 'libflutter.so'. Looked for: [arm64-v8a], but only found: [x86_64].`
+
+**To build an APK that runs on real phones:**
+
+```bash
+# Option A: Fat APK (all architectures) – use for local install
+flutter clean
+flutter pub get
+flutter build apk
+# Install: build/app/outputs/flutter-apk/app-release.apk
+
+# Option B: ARM-only APK (smaller, real devices only)
+flutter build apk --target-platform android-arm64,android-arm
+# Output: build/app/outputs/flutter-apk/app-release.apk
+```
+
+Do **not** use `--target-platform android-x64` when building for phones.
+
 ## Troubleshooting
 
 ### Firebase Not Initialized
@@ -139,4 +161,10 @@ flutter run -d ios
 - Run `flutter clean`
 - Delete `pubspec.lock` and run `flutter pub get`
 - For iOS: `cd ios && pod install && cd ..`
+
+### App crashes on real device: "Could not find libflutter.so" / "only found: [x86_64]"
+- The APK was built for emulator (x86_64) only. Rebuild for real devices:
+  - `flutter clean && flutter pub get && flutter build apk`
+  - Or: `flutter build apk --target-platform android-arm64,android-arm`
+- Then install the new APK on your phone (uninstall the old one first if needed).
 

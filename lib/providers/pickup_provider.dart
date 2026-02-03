@@ -212,13 +212,11 @@ class PickupProvider with ChangeNotifier {
       _queueItem!.id, // Exclude current item from position calculation
     );
     
-    // Only trigger notification if explicitly requested and position changed
-    if (!skipNotification && 
-        _pickupState == PickupState.queued && 
-        _queuePosition != _previousQueuePosition && 
-        _queuePosition > 0 &&
-        _previousQueuePosition > 0) { // Only notify if we had a previous position
-      _handleStateChangeNotification();
+    if (!skipNotification &&
+        _pickupState == PickupState.queued &&
+        _queuePosition != _previousQueuePosition &&
+        _queuePosition > 0) {
+      _handleQueuePositionNotification();
     }
   }
 
@@ -263,8 +261,21 @@ class PickupProvider with ChangeNotifier {
     }
   }
 
+  void _handleQueuePositionNotification() {
+    if (_pickupState != PickupState.queued || _queuePosition <= 0) return;
+    String title;
+    String body;
+    if (_previousQueuePosition <= 0) {
+      title = '✅ Position Ready';
+      body = 'Your position: #$_queuePosition';
+    } else {
+      title = '📍 Queue Update';
+      body = 'Your position: #$_queuePosition';
+    }
+    NotificationService().showStatusNotification(title: title, body: body);
+  }
+
   void _handleStateChangeNotification() {
-    // Only show notifications for important state changes
     if (_previousPickupState == _pickupState) return;
 
     String title;
@@ -276,23 +287,21 @@ class PickupProvider with ChangeNotifier {
         body = 'Your child is ready. Please proceed to the pickup area.';
         break;
       case PickupState.queued:
-        // Only show notification when first joining queue (transitioning TO queued state)
         if (_previousPickupState != PickupState.queued) {
-          // Ensure position is calculated before showing notification
-          if (_queuePosition <= 0) {
-            // Position not ready yet, skip notification - it will be handled by position update
-            return;
-          }
           title = '✅ Joined Queue';
-          body = 'You\'re now in line. Position: #$_queuePosition';
-        } else if (_queuePosition != _previousQueuePosition && 
-                   _queuePosition > 0 && 
-                   _previousQueuePosition > 0) {
-          // Only notify for position changes if we already had a position
-          title = '📍 Queue Update';
-          body = 'Your position: #$_queuePosition';
+          body = _queuePosition > 0
+              ? 'You\'re now in line. Position: #$_queuePosition'
+              : 'You\'re in the queue. Your position will update shortly.';
+        } else if (_queuePosition != _previousQueuePosition && _queuePosition > 0) {
+          if (_previousQueuePosition <= 0) {
+            title = '✅ Position Ready';
+            body = 'Your position: #$_queuePosition';
+          } else {
+            title = '📍 Queue Update';
+            body = 'Your position: #$_queuePosition';
+          }
         } else {
-          return; // Don't notify for minor updates
+          return;
         }
         break;
       case PickupState.pickedUp:

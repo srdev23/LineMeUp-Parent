@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/parent.dart';
@@ -7,7 +9,45 @@ class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
+  // Timeout durations
+  static const Duration _signInTimeout = Duration(seconds: 30);
+  static const Duration _firestoreTimeout = Duration(seconds: 20);
+
+  /// Wraps an async operation with a timeout
+  Future<T> _withTimeout<T>(
+    Future<T> Function() operation,
+    Duration timeout,
+    String operationName,
+  ) async {
+    try {
+      return await operation().timeout(
+        timeout,
+        onTimeout: () {
+          print('⏱️ Timeout: $operationName exceeded ${timeout.inSeconds}s');
+          throw TimeoutException(
+            '$operationName timed out after ${timeout.inSeconds} seconds',
+            timeout,
+          );
+        },
+      );
+    } on TimeoutException {
+      rethrow;
+    } catch (e) {
+      print('❌ Error in $operationName: $e');
+      rethrow;
+    }
+  }
+
   User? get currentUser => _auth.currentUser;
+
+  /// Configure phone auth to prefer Play Integrity (no reCAPTCHA redirect when possible).
+  /// In debug, disables app verification for whitelisted test numbers (add them in Firebase Console).
+  static Future<void> configurePhoneAuth() async {
+    await FirebaseAuth.instance.setSettings(forceRecaptchaFlow: false);
+    if (kDebugMode) {
+      await FirebaseAuth.instance.setSettings(appVerificationDisabledForTesting: true);
+    }
+  }
 
   Stream<User?> get authStateChanges => _auth.authStateChanges();
 
@@ -79,52 +119,29 @@ class AuthService {
   }
 
 
-  Future<Parent?> signInWithOTP({
-    required String verificationId,
-    required String smsCode,
-  }) async {
-    try {
-      // Create credential
-      PhoneAuthCredential credential = PhoneAuthProvider.credential(
-        verificationId: verificationId,
-        smsCode: smsCode,
-      );
-
-      // Sign in
-      UserCredential userCredential =
-          await _auth.signInWithCredential(credential);
-      
-      if (userCredential.user == null) {
-        await signOut();
-        return null;
-      }
-
-      String phoneNumber = userCredential.user!.phoneNumber ?? '';
-      
-      if (phoneNumber.isEmpty) {
-        await signOut();
-        return null;
-      }
-
-      // Verify parent exists in Firestore
-      return await _verifyParentInFirestore(phoneNumber);
-    } on FirebaseAuthException {
-      await signOut();
-      rethrow;
-    } catch (e) {
-      await signOut();
-      rethrow;
-    }
+  /// Sign in with credential - simple wrapper with timeout
+  Future<UserCredential> signInWithCredential(PhoneAuthCredential credential) async {
+    return await _withTimeout(
+      () => _auth.signInWithCredential(credential),
+      _signInTimeout,
+      'signInWithCredential',
+    );
   }
 
-  Future<Parent?> _verifyParentInFirestore(String phoneNumber) async {
+  /// Verify parent exists in Firestore - single attempt, no retries
+  /// Retries are handled by the caller
+  Future<Parent?> verifyParentInFirestore(String phoneNumber) async {
     try {
-      // First, try direct query with exact match
-      QuerySnapshot querySnapshot = await _firestore
-          .collection('parents')
-          .where('contactInfo', isEqualTo: phoneNumber)
-          .limit(1)
-          .get();
+      // Try direct query with exact match
+      QuerySnapshot querySnapshot = await _withTimeout(
+        () => _firestore
+            .collection('parents')
+            .where('contactInfo', isEqualTo: phoneNumber)
+            .limit(1)
+            .get(),
+        _firestoreTimeout,
+        'Firestore query (contactInfo)',
+      );
 
       if (querySnapshot.docs.isNotEmpty) {
         final doc = querySnapshot.docs.first;
@@ -134,11 +151,12 @@ class AuthService {
         }
       }
 
-      // If direct query fails, try matching with normalized phone numbers
-      // This handles cases where phone number formats differ
-      QuerySnapshot allParents = await _firestore
-          .collection('parents')
-          .get();
+      // If direct query fails, try normalized phone number matching
+      QuerySnapshot allParents = await _withTimeout(
+        () => _firestore.collection('parents').get(),
+        _firestoreTimeout,
+        'Firestore query (all parents)',
+      );
 
       for (var doc in allParents.docs) {
         final data = doc.data() as Map<String, dynamic>?;
@@ -146,37 +164,21 @@ class AuthService {
         
         String contactInfo = data['contactInfo']?.toString() ?? '';
         
-        // Compare phone numbers (handles different formats)
         if (PhoneUtils.arePhoneNumbersEqual(phoneNumber, contactInfo)) {
           return Parent.fromFirestore(data, doc.id);
         }
       }
 
-      // If no match found, sign out
-      await signOut();
+      // No match found
       return null;
     } catch (e) {
-      await signOut();
-      return null;
+      // Rethrow all errors - caller will handle retries
+      rethrow;
     }
   }
 
-  // Verify parent when user is already signed in (for auto-verification)
-  Future<Parent?> verifyCurrentUser() async {
-    final user = _auth.currentUser;
-    if (user == null || user.phoneNumber == null) {
-      return null;
-    }
-    
-    return await _verifyParentInFirestore(user.phoneNumber!);
-  }
-
+  /// Sign out from Firebase Auth
   Future<void> signOut() async {
     await _auth.signOut();
-  }
-
-  // Sign in with credential (for auto-verification)
-  Future<void> signInWithCredential(PhoneAuthCredential credential) async {
-    await _auth.signInWithCredential(credential);
   }
 }
