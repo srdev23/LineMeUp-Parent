@@ -313,11 +313,18 @@ flutter run -d [iPhone-device-id]
 - For notification testing, use a real iPhone
 
 ### Phone Auth Crash: "Fatal error: Unexpectedly found nil"
-**Cause:** Firebase Phone Auth bug on iOS simulators  
+**Cause:** Missing URL scheme in Info.plist (CRITICAL!)  
 **Solution:**
+- ✅ **Fixed!** Added `CFBundleURLTypes` with `REVERSED_CLIENT_ID` to Info.plist
+- This URL scheme is REQUIRED for Firebase Phone Auth on iOS
+- Without it, Firebase can't handle OAuth callbacks → crashes
+
+**For Simulator Testing:**
 - **Use test phone numbers** (see Testing section above)
 - Add test numbers in Firebase Console → Authentication → Phone numbers for testing
-- Or test on a **real iPhone** where Phone Auth works reliably
+
+**For Real Device Testing:**
+- URL scheme is now configured - real phone auth should work!
 
 ### "No such module 'Firebase'"
 **Solution:**

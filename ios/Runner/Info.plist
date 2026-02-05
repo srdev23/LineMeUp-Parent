@@ -67,5 +67,19 @@
 		<key>NSAllowsArbitraryLoads</key>
 		<false/>
 	</dict>
+	
+	<!-- Firebase URL Scheme (CRITICAL for Phone Auth!) -->
+	<!-- This MUST match REVERSED_CLIENT_ID from GoogleService-Info.plist -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.943973740054-1s1dc4d5vsde30b06vrj967svnekuka0</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>
