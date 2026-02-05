@@ -135,8 +135,9 @@ class AuthProvider with ChangeNotifier {
 
       if (parent == null) {
         print('❌ Parent not found in Firestore');
-        // Clean up: sign out from Firebase
+        // Clean up: sign out from Firebase and clear verification state
         await _authService.signOut();
+        _verificationId = null; // Clear verification ID to force new request
         _errorMessage = 'This phone number is not registered. Please contact your school.';
         _isLoading = false;
         notifyListeners();
@@ -169,6 +170,7 @@ class AuthProvider with ChangeNotifier {
     } on FirebaseAuthException catch (e) {
       print('❌ Firebase auth error: ${e.code}');
       await _authService.signOut();
+      _verificationId = null; // Clear verification ID to force new request
       _errorMessage = _getAuthErrorMessage(e);
       _isLoading = false;
       notifyListeners();
@@ -177,6 +179,7 @@ class AuthProvider with ChangeNotifier {
     } on TimeoutException catch (e) {
       print('⏱️ Timeout error: $e');
       await _authService.signOut();
+      _verificationId = null; // Clear verification ID to force new request
       _errorMessage = 'Request timed out. Please check your connection and try again.';
       _isLoading = false;
       notifyListeners();
@@ -185,6 +188,7 @@ class AuthProvider with ChangeNotifier {
     } catch (e) {
       print('❌ Unexpected error: $e');
       await _authService.signOut();
+      _verificationId = null; // Clear verification ID to force new request
       _errorMessage = 'Unable to sign in. Please try again.';
       _isLoading = false;
       notifyListeners();

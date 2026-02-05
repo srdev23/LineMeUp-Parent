@@ -292,6 +292,22 @@ class _LoginScreenState extends State<LoginScreen> {
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(builder: (_) => const StudentSelectionScreen()),
       );
+    } else {
+      // Sign-in failed - reset to phone entry state to force new verification
+      print('⚠️ Sign-in failed, resetting to phone entry state');
+      setState(() {
+        _isOtpSent = false;
+        _verificationId = null;
+        _otpController.clear();
+      });
+      
+      // Show error message from provider
+      if (authProvider.errorMessage != null) {
+        _showSnackBar(
+          message: authProvider.errorMessage!,
+          isError: true,
+        );
+      }
     }
   }
 
@@ -440,13 +456,40 @@ class _LoginScreenState extends State<LoginScreen> {
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'Verification Code',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.grey[700],
-                      ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Verification Code',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.grey[700],
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: () {
+                            // Allow user to go back and change phone number
+                            final authProvider =
+                                Provider.of<app_auth.AuthProvider>(
+                                    context,
+                                    listen: false);
+                            authProvider.clearError();
+                            setState(() {
+                              _isOtpSent = false;
+                              _verificationId = null;
+                              _otpController.clear();
+                            });
+                          },
+                          child: Text(
+                            'Change Number',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Theme.of(context).primaryColor,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 8),
                     Container(
