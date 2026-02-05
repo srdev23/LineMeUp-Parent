@@ -406,20 +406,20 @@ flutter doctor -v
 
 # Clean everything
 flutter clean
-cd ios && rm -rf Pods Podfile.lock && pod cache clean --all && cd ..
+flutter pub get
+flutter pub upgrade
 
-# Install pods
-cd ios && pod install && cd ..
+# Remove iOS build artifacts
+cd ios && rm -rf Pods Podfile.lock && rm -rf Flutter/Flutter.framework && pod deintegrate && pod cache clean --all && pod repo update && pod install && cd ..
+
+# Delete Xcode derived data
+rm -rf ~/Library/Developer/Xcode/DerivedData
 
 # Run on iOS simulator
 flutter run
 
-# Run on physical iPhone
-flutter run -d [device-id]
-
-# Build iOS app (release)
-flutter build ios --release
-
+# Build iOS app
+flutter build ios
 # Open in Xcode
 open ios/Runner.xcworkspace
 ```
