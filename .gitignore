@@ -40,6 +40,7 @@ app.*.symbols
 app.*.map.json
 google-services.json
 GoogleService-Info.plist
+upload-keystore.jks
 
 cursor_prompt.txt
 # Android Studio will place build artifacts here
