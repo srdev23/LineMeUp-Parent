@@ -100,30 +100,37 @@ class _StudentSelectionScreenState extends State<StudentSelectionScreen> {
   Widget build(BuildContext context) {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     final parentName = authProvider.currentParent?.name ?? 'Parent';
+    final isTablet = MediaQuery.of(context).size.shortestSide >= 600;
+    final maxContentWidth = isTablet ? 700.0 : double.infinity;
     
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       body: SafeArea(
-        child: Consumer<StudentProvider>(
-          builder: (context, studentProvider, child) {
-            return Column(
-              children: [
-                // Custom App Bar
-                _buildAppBar(parentName),
-                
-                // Content
-                Expanded(
-                  child: _buildContent(studentProvider),
-                ),
-                
-                // Bottom Button
-                if (!studentProvider.isLoading && 
-                    studentProvider.errorMessage == null &&
-                    studentProvider.students.isNotEmpty)
-                  _buildBottomButton(studentProvider),
-              ],
-            );
-          },
+        child: Center(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: maxContentWidth),
+            child: Consumer<StudentProvider>(
+              builder: (context, studentProvider, child) {
+                return Column(
+                  children: [
+                    // Custom App Bar
+                    _buildAppBar(parentName),
+                    
+                    // Content
+                    Expanded(
+                      child: _buildContent(studentProvider),
+                    ),
+                    
+                    // Bottom Button
+                    if (!studentProvider.isLoading && 
+                        studentProvider.errorMessage == null &&
+                        studentProvider.students.isNotEmpty)
+                      _buildBottomButton(studentProvider),
+                  ],
+                );
+              },
+            ),
+          ),
         ),
       ),
     );

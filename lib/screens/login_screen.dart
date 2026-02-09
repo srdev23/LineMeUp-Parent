@@ -313,15 +313,30 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Detect if running on tablet/iPad
+    final isTablet = MediaQuery.of(context).size.shortestSide >= 600;
+    final maxContentWidth = isTablet ? 500.0 : double.infinity;
+    
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const SizedBox(height: 40),
+        child: Center(
+          child: SingleChildScrollView(
+            padding: EdgeInsets.symmetric(
+              horizontal: isTablet ? 0 : 24.0,
+              vertical: isTablet ? 40.0 : 24.0,
+            ),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxWidth: maxContentWidth,
+                minHeight: MediaQuery.of(context).size.height - MediaQuery.of(context).padding.top - MediaQuery.of(context).padding.bottom,
+              ),
+              child: IntrinsicHeight(
+                child: Column(
+                  mainAxisAlignment: isTablet ? MainAxisAlignment.center : MainAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    SizedBox(height: isTablet ? 0 : 40),
               // Logo and Title
               Center(
                 child: Column(
@@ -636,20 +651,23 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
               ],
 
-              const SizedBox(height: 40),
+                    SizedBox(height: isTablet ? 20 : 40),
 
-              // Help text
-              Center(
-                child: Text(
-                  'By signing in, you agree to our Terms of Service',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey[500],
-                  ),
-                  textAlign: TextAlign.center,
+                    // Help text
+                    Center(
+                      child: Text(
+                        'By signing in, you agree to our Terms of Service',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey[500],
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ],
+            ),
           ),
         ),
       ),

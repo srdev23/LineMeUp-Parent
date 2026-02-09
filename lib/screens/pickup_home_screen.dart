@@ -34,40 +34,53 @@ class _PickupHomeScreenState extends State<PickupHomeScreen>
 
   @override
   Widget build(BuildContext context) {
+    final isTablet = MediaQuery.of(context).size.shortestSide >= 600;
+    final maxContentWidth = isTablet ? 700.0 : double.infinity;
+    
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       body: SafeArea(
-        child: Consumer<PickupProvider>(
-          builder: (context, pickupProvider, child) {
-            if (pickupProvider.school == null || pickupProvider.selectedStudents.isEmpty) {
-              return const Center(child: CircularProgressIndicator());
-            }
+        child: Center(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: maxContentWidth),
+            child: Consumer<PickupProvider>(
+              builder: (context, pickupProvider, child) {
+                if (pickupProvider.school == null || pickupProvider.selectedStudents.isEmpty) {
+                  return const Center(child: CircularProgressIndicator());
+                }
 
-            return Column(
-              children: [
-                _buildAppBar(pickupProvider),
-                Expanded(
-                  child: RefreshIndicator(
-                    onRefresh: () async {},
-                    child: SingleChildScrollView(
-                      physics: const AlwaysScrollableScrollPhysics(),
-                      padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
-                      child: Column(
-                        children: [
-                          _buildStatusCard(pickupProvider),
-                          const SizedBox(height: 20),
-                          _buildStudentsCard(pickupProvider),
-                          const SizedBox(height: 20),
-                          _buildInfoCard(pickupProvider),
-                          const SizedBox(height: 20),
-                        ],
+                return Column(
+                  children: [
+                    _buildAppBar(pickupProvider),
+                    Expanded(
+                      child: RefreshIndicator(
+                        onRefresh: () async {},
+                        child: SingleChildScrollView(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          padding: EdgeInsets.fromLTRB(
+                            isTablet ? 40 : 20,
+                            8,
+                            isTablet ? 40 : 20,
+                            20,
+                          ),
+                          child: Column(
+                            children: [
+                              _buildStatusCard(pickupProvider),
+                              const SizedBox(height: 20),
+                              _buildStudentsCard(pickupProvider),
+                              const SizedBox(height: 20),
+                              _buildInfoCard(pickupProvider),
+                              const SizedBox(height: 20),
+                            ],
+                          ),
+                        ),
                       ),
                     ),
-                  ),
-                ),
-              ],
-            );
-          },
+                  ],
+                );
+              },
+            ),
+          ),
         ),
       ),
     );

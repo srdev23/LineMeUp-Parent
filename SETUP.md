@@ -147,6 +147,37 @@ flutter build apk --target-platform android-arm64,android-arm
 
 Do **not** use `--target-platform android-x64` when building for phones.
 
+### 10. Building AAB for Google Play Store (Publish)
+
+To publish to Google Play you must upload an **Android App Bundle (.aab)**, not an APK.
+
+**Prerequisites:**
+- `android/key.properties` exists with your keystore credentials (see below)
+- `upload-keystore.jks` in project root (or path set in `key.properties`)
+
+**Build the AAB:**
+
+```bash
+flutter clean
+flutter pub get
+flutter build appbundle
+```
+
+**Output:** `build/app/outputs/bundle/release/app-release.aab`
+
+Upload this file in [Google Play Console](https://play.google.com/console) → Your app → Release → Create new release → Upload.
+
+**Version:** Set `version` in `pubspec.yaml` (e.g. `1.0.0+1`). For each store update, bump version name and/or build number.
+
+**If you don't have `key.properties` yet:** Create `android/key.properties` with:
+```properties
+storePassword=YOUR_STORE_PASSWORD
+keyPassword=YOUR_KEY_PASSWORD
+keyAlias=YOUR_KEY_ALIAS
+storeFile=../upload-keystore.jks
+```
+(`storeFile` is relative to the `android/` folder.)
+
 ## 🔔 Notification Setup & Testing
 
 ### Testing Notifications Work
